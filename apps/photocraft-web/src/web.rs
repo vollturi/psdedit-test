@@ -134,9 +134,21 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
                 Ok(buffer) => {
                     let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
                     inbox.lock().unwrap_or_else(|e| e.into_inner()).push((name, bytes));
+                    if let Some(window) = web_sys::window() {
+                        if let Ok(event) = web_sys::CustomEvent::new("psdedit:file-read") {
+                            let _ = window.dispatch_event(&event);
+                        }
+                    }
                     ctx.request_repaint();
                 }
-                Err(error) => log::error!("Could not read selected file: {error:?}"),
+                Err(error) => {
+                    log::error!("Could not read selected file: {error:?}");
+                    if let Some(window) = web_sys::window() {
+                        if let Ok(event) = web_sys::CustomEvent::new("psdedit:file-read-error") {
+                            let _ = window.dispatch_event(&event);
+                        }
+                    }
+                },
             }
         });
     });
