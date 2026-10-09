@@ -149,6 +149,41 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
     {
         callback.forget();
     }
+
+    // Font uploads use a separate event so TTF/OTF files never enter the document inbox.
+    let font_callback = Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+        let Some(event) = event.dyn_ref::<web_sys::CustomEvent>() else { return; };
+        let detail = event.detail();
+        let Ok(value) = js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("file")) else { return; };
+        let Ok(file) = value.dyn_into::<web_sys::File>() else { return; };
+        let name = file.name();
+        let ctx = ctx.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
+                Ok(buffer) => {
+                    let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
+                    let result = photocraft_text::shared()
+                        .lock()
+                        .map(|mut engine| engine.fonts.register_font_data(bytes));
+                    match result {
+                        Ok(families) if !families.is_empty() => {
+                            log::info!("Registered font file {name}: {}", families.join(", "));
+                        }
+                        Ok(_) => log::warn!("No font family could be read from {name}"),
+                        Err(_) => log::error!("Could not register font file {name}: font engine is busy"),
+                    }
+                    ctx.request_repaint();
+                }
+                Err(error) => log::error!("Could not read font file {name}: {error:?}"),
+            }
+        });
+    });
+    if window
+        .add_event_listener_with_callback("psdedit:font-selected", font_callback.as_ref().unchecked_ref())
+        .is_ok()
+    {
+        font_callback.forget();
+    }
 }
 
 fn query() -> String {
