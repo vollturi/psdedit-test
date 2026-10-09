@@ -194,6 +194,7 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
                 let detail = js_sys::Object::new();
                 let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("ok"), &wasm_bindgen::JsValue::from_bool(ok));
                 let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("registered"), &wasm_bindgen::JsValue::from_str(&registered));
+                let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("name"), &wasm_bindgen::JsValue::from_str(&name));
                 if let Some(family) = google_family {
                     let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("family"), &wasm_bindgen::JsValue::from_str(&family));
                 }
