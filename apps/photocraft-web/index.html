@@ -613,6 +613,40 @@
 
       const fontInput = document.getElementById("fontInput");
       const fontStatus = document.getElementById("fontUploadStatus");
+
+      // Load real font binaries into the same Rust text engine used by the canvas.
+      // Names alone or CSS @import do not make fonts available to the PSD text tool.
+      const googleFonts = [
+        ["Roboto", "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf"],
+        ["Poppins", "ofl/poppins/Poppins%5Bwght%5D.ttf"],
+        ["Montserrat", "ofl/montserrat/Montserrat%5Bwght%5D.ttf"],
+        ["Open Sans", "ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf"],
+        ["Oswald", "ofl/oswald/Oswald%5Bwght%5D.ttf"],
+        ["Nunito", "ofl/nunito/Nunito%5Bwght%5D.ttf"],
+        ["Raleway", "ofl/raleway/Raleway%5Bwght%5D.ttf"],
+        ["Playfair Display", "ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf"],
+        ["Ubuntu", "ofl/ubuntu/Ubuntu%5Bwght%5D.ttf"],
+        ["Source Sans 3", "ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf"],
+        ["Lato", "ofl/lato/Lato%5Bwght%5D.ttf"],
+        ["Merriweather", "ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf"]
+      ];
+
+      let loadedGoogleFonts = 0;
+      Promise.allSettled(googleFonts.map(async ([family, path]) => {
+        const response = await fetch("https://raw.githubusercontent.com/google/fonts/main/" + path);
+        if (!response.ok) throw new Error("Could not fetch " + family);
+        const bytes = await response.arrayBuffer();
+        const file = new File([bytes], family.replace(/[^a-z0-9]+/gi, "-") + ".ttf", { type: "font/ttf" });
+        window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
+          detail: { name: file.name, file }
+        }));
+        loadedGoogleFonts++;
+      })).then(results => {
+        const failed = results.filter(result => result.status === "rejected").length;
+        if (failed) console.warn("Some Google Fonts could not be loaded:", failed);
+        console.info("Google Fonts loaded for PSDEdit:", loadedGoogleFonts, "of", googleFonts.length);
+      });
+
       fontInput.addEventListener("change", () => {
         const file = fontInput.files && fontInput.files[0];
         if (!file) return;
