@@ -653,8 +653,13 @@
         try {
           // The official metadata endpoint blocks browser CORS in some environments,
           // so use a public CORS-enabled mirror of the same Google Fonts catalog.
-          let response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsMeta.json");
-          if (!response.ok) response = await fetch("https://fonts.google.com/metadata/fonts");
+          // Use the cached Google Fonts Developer API dataset first: its `files`
+          // entries point to actual TrueType files supported by the editor's font parser.
+          // The newer site metadata endpoint often points at WOFF2, which cannot be parsed
+          // by the current Rust font engine and caused selected families to appear as Missing.
+          let response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsAPI_ttf.json");
+          if (!response.ok) response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsAPI.json");
+          if (!response.ok) response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsMeta.json");
           if (!response.ok) throw new Error("Google Fonts catalog request failed");
           const raw = (await response.text()).replace(/^\)\]\}'[,]?\s*/, "");
           const data = JSON.parse(raw);
