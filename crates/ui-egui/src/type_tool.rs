@@ -704,12 +704,17 @@ pub fn styles(family: &str) -> Vec<String> {
 }
 
 /// Read the full Google Fonts catalog loaded asynchronously by the web shell.
+#[cfg(target_arch = "wasm32")]
 fn google_font_families() -> Vec<String> {
+    use wasm_bindgen::JsCast;
     let Some(window) = web_sys::window() else { return Vec::new(); };
     let Ok(value) = js_sys::Reflect::get(window.as_ref(), &wasm_bindgen::JsValue::from_str("__psdeditGoogleFontFamilies")) else { return Vec::new(); };
     let Ok(array) = value.dyn_into::<js_sys::Array>() else { return Vec::new(); };
     array.iter().filter_map(|value| value.as_string()).collect()
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn google_font_families() -> Vec<String> { Vec::new() }
 /// Searchable font-family combo box with a clearly labelled Google Fonts section.
 /// Search terms may include a style (for example "Poppins Bold"), and the result stays
 /// selectable even when the query includes words that belong to the style rather than family.
@@ -752,6 +757,7 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
             if ui.selectable_label(f == current, label).clicked() {
                 *current = f.clone();
                 changed = true;
+                #[cfg(target_arch = "wasm32")]
                 if google_catalog.iter().any(|family| family.eq_ignore_ascii_case(f)) {
                     if let Some(window) = web_sys::window() {
                         let detail = js_sys::Object::new();
