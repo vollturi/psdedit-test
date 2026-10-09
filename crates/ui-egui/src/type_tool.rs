@@ -697,21 +697,37 @@ const GOOGLE_FONT_FAMILIES: &[&str] = &[
 ];
 
 /// Searchable font-family combo box with a clearly labelled Google Fonts section.
+/// Search terms may include a style (for example "Poppins Bold"), and the result stays
+/// selectable even when the query includes words that belong to the style rather than family.
 fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
     let mut changed = false;
     let search_id = ui.id().with("font-search");
     let available = families();
     egui::ComboBox::from_id_salt("type-font").selected_text(current.as_str()).width(width).height(460.0).icon(crate::widgets::chevron_icon).show_ui(ui, |ui| {
         let mut q: String = ui.data(|d| d.get_temp(search_id)).unwrap_or_default();
-        let r = ui.add(egui::TextEdit::singleline(&mut q).hint_text(tl!("Search fonts")).desired_width(200.0));
-        if !r.has_focus() && q.is_empty() {
+        let r = ui.add(egui::TextEdit::singleline(&mut q).hint_text(tl!("Search fonts or styles")).desired_width(200.0));
+        if q.is_empty() && !r.has_focus() {
             r.request_focus();
         }
         ui.data_mut(|d| d.insert_temp(search_id, q.clone()));
-        let ql = q.to_lowercase();
+        let terms: Vec<String> = q.to_lowercase().split_whitespace().map(str::to_string).collect();
+
+        let matches_font = |family: &str| {
+            let family_l = family.to_lowercase();
+            let styles_l = styles(family).join(" ").to_lowercase();
+            terms.iter().all(|term| family_l.contains(term) || styles_l.contains(term))
+        };
 
         let mut choose = |ui: &mut egui::Ui, f: &String| {
-            if ui.selectable_label(f == current, f).clicked() {
+            let style_matches: Vec<String> = styles(f).into_iter()
+                .filter(|s| terms.iter().all(|term| f.to_lowercase().contains(term) || s.to_lowercase().contains(term)))
+                .collect();
+            let label = if !terms.is_empty() && !style_matches.is_empty() {
+                format!("{f}  ·  {}", style_matches.join(", "))
+            } else {
+                f.clone()
+            };
+            if ui.selectable_label(f == current, label).clicked() {
                 *current = f.clone();
                 changed = true;
                 ui.data_mut(|d| d.remove::<String>(search_id));
@@ -720,15 +736,13 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
 
         ui.label(tl!("Available fonts"));
         for f in available.iter().filter(|f| {
-            !GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f))
-                && (ql.is_empty() || f.to_lowercase().contains(&ql))
+            !GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f)) && matches_font(f)
         }) {
             choose(ui, f);
         }
 
         let google: Vec<&String> = available.iter().filter(|f| {
-            GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f))
-                && (ql.is_empty() || f.to_lowercase().contains(&ql))
+            GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f)) && matches_font(f)
         }).collect();
         if !google.is_empty() {
             ui.separator();
@@ -738,6 +752,8 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
             }
             ui.separator();
             ui.small("Powered by Google Fonts");
+        } else if !terms.is_empty() {
+            ui.label("No matching fonts or styles");
         }
     });
     changed
