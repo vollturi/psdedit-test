@@ -762,6 +762,16 @@
         window.__psdeditFontListenerReady = true;
       }, { once: true });
 
+      window.addEventListener("psdedit:google-font-result", event => {
+        const detail = event.detail || {};
+        if (!detail.name || detail.name !== fontStatus.dataset.pendingFile) return;
+        fontStatus.textContent = detail.ok
+          ? "Loaded: " + detail.name
+          : "Could not load: " + detail.name;
+        fontStatus.dataset.pendingFile = "";
+        fontInput.value = "";
+      });
+
       fontInput.addEventListener("change", () => {
         const file = fontInput.files && fontInput.files[0];
         if (!file) return;
@@ -771,14 +781,11 @@
           fontInput.value = "";
           return;
         }
+        fontStatus.dataset.pendingFile = file.name;
         fontStatus.textContent = "Loading " + file.name + "…";
         window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
           detail: { name: file.name, file }
         }));
-        window.setTimeout(() => {
-          fontStatus.textContent = "Font sent to editor";
-          fontInput.value = "";
-        }, 700);
       });
 
       function openEditor(file) {
