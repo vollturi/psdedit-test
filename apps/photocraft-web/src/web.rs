@@ -108,6 +108,7 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
         return;
     };
 
+    let font_ctx = ctx.clone();
     let callback = Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
         let Some(event) = event.dyn_ref::<web_sys::CustomEvent>() else {
             return;
@@ -157,7 +158,7 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
         let Ok(value) = js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("file")) else { return; };
         let Ok(file) = value.dyn_into::<web_sys::File>() else { return; };
         let name = file.name();
-        let ctx = ctx.clone();
+        let ctx = font_ctx.clone();
         wasm_bindgen_futures::spawn_local(async move {
             match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
                 Ok(buffer) => {
