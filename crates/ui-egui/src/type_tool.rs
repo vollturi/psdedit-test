@@ -718,7 +718,7 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
     let mut changed = false;
     let search_id = ui.id().with("font-search");
     let available = families();
-    egui::ComboBox::from_id_salt("type-font").selected_text(current.as_str()).width(width).height(460.0).icon(crate::widgets::chevron_icon).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt("type-font").selected_text(current.as_str()).width(width).height(620.0).icon(crate::widgets::chevron_icon).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show_ui(ui, |ui| {
         let mut q: String = ui.data(|d| d.get_temp(search_id)).unwrap_or_default();
         let r = ui.add(egui::TextEdit::singleline(&mut q).hint_text(tl!("Search fonts or styles")).desired_width(200.0));
         if q.is_empty() && !r.has_focus() {
