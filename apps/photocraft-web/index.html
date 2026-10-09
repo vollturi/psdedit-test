@@ -710,7 +710,7 @@
           if (!item) throw new Error("Google Font not found in catalog");
           const files = item.files || {};
           const supported = [...new Set(Object.values(files).filter(value =>
-            typeof value === "string" && /\\.(ttf|otf|ttc|otc)(?:[?#].*)?$/i.test(new URL(value).pathname)
+            typeof value === "string" && /\.(ttf|otf|ttc|otc)(?:[?#].*)?$/i.test(new URL(value).pathname)
           ))];
           if (!supported.length) throw new Error("No supported TTF/OTF files are available for this family");
 
@@ -737,7 +737,7 @@
             const bytes = await response.arrayBuffer();
             if (!bytes.byteLength) throw new Error("Downloaded font file is empty: " + url);
             const path = new URL(url).pathname;
-            const extension = path.match(/\\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
+            const extension = path.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
             if (!["ttf", "otf", "ttc", "otc"].includes(extension)) {
               throw new Error("Unsupported font format: " + extension);
             }
@@ -793,11 +793,8 @@
         note.textContent = file.name;
         document.body.classList.add("editor-mode");
 
-        /*
-         * This first UI prototype reveals the existing editor.
-         * The selected file still needs to be passed into the Rust/WebAssembly
-         * import inbox in a separate implementation step.
-         */
+        // The Rust/WebAssembly shell listens for this event, reads the File bytes,
+        // and pushes them into the same inbox used by drag-and-drop and File > Open.
         window.dispatchEvent(new CustomEvent("psdedit:file-selected", {
           detail: { name: file.name, file }
         }));
