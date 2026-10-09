@@ -698,7 +698,10 @@
           // Keep the actual extension: Google Fonts catalog entries can be WOFF/WOFF2,
           // and naming those files .ttf can hide format problems while registering them.
           const path = new URL(url).pathname;
-          const extension = (path.match(/\\.(ttf|otf|woff2?|ttc|otc)(?:$|\\?)/i) || [null, "ttf"])[1].toLowerCase();
+          const extension = (path.match(/\.(ttf|otf|ttc|otc)$/i) || [null, "ttf"])[1].toLowerCase();
+          if (!["ttf", "otf", "ttc", "otc"].includes(extension)) {
+            throw new Error("This font source provides " + extension.toUpperCase() + ", but the editor requires TTF/OTF. Choose another font source.");
+          }
           const safeName = family.replace(/[^a-z0-9]+/gi, "-");
           const mime = extension.startsWith("woff") ? "font/" + extension : "font/" + extension;
           const file = new File([bytes], safeName + "." + extension, { type: mime });
