@@ -703,14 +703,13 @@ pub fn styles(family: &str) -> Vec<String> {
     if v.is_empty() { vec![tl!("Regular").into()] } else { v }
 }
 
-/// Google Fonts bundled by the web shell at runtime. These are real font files registered
-/// with the text engine, not merely CSS names.
-const GOOGLE_FONT_FAMILIES: &[&str] = &[
-    "Roboto", "Poppins", "Montserrat", "Open Sans", "Oswald", "Nunito", "Raleway",
-    "Playfair Display", "Source Sans 3", "Lato", "Merriweather", "Inter", "Rubik",
-    "Work Sans", "DM Sans", "Archivo", "Bebas Neue", "Anton",
-];
-
+/// Read the full Google Fonts catalog loaded asynchronously by the web shell.
+fn google_font_families() -> Vec<String> {
+    let Some(window) = web_sys::window() else { return Vec::new(); };
+    let Ok(value) = js_sys::Reflect::get(window.as_ref(), &wasm_bindgen::JsValue::from_str("__psdeditGoogleFontFamilies")) else { return Vec::new(); };
+    let Ok(array) = value.dyn_into::<js_sys::Array>() else { return Vec::new(); };
+    array.iter().filter_map(|value| value.as_string()).collect()
+}
 /// Searchable font-family combo box with a clearly labelled Google Fonts section.
 /// Search terms may include a style (for example "Poppins Bold"), and the result stays
 /// selectable even when the query includes words that belong to the style rather than family.
@@ -718,6 +717,7 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
     let mut changed = false;
     let search_id = ui.id().with("font-search");
     let available = families();
+    let google_catalog = google_font_families();
     egui::ComboBox::from_id_salt("type-font").selected_text(current.as_str()).width(width).height(620.0).icon(crate::widgets::chevron_icon).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show_ui(ui, |ui| {
         ui.set_min_height(420.0);
         let mut q: String = ui.data(|d| d.get_temp(search_id)).unwrap_or_default();
@@ -758,18 +758,16 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
 
         ui.label(tl!("Available fonts"));
         for f in available.iter().filter(|f| {
-            !GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f)) && matches_font(f)
+            !google_catalog.iter().any(|g| g.eq_ignore_ascii_case(f)) && matches_font(f)
         }) {
             choose(ui, f);
         }
 
-        let google: Vec<&String> = available.iter().filter(|f| {
-            GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f)) && matches_font(f)
-        }).collect();
+        let google: Vec<String> = google_catalog.iter().filter(|f| matches_font(f)).cloned().collect();
         if !google.is_empty() {
             ui.separator();
             ui.label(egui::RichText::new("Google Fonts").strong());
-            for f in google {
+            for f in &google {
                 choose(ui, f);
             }
             ui.separator();
