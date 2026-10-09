@@ -6,7 +6,7 @@ use crate::PhotocraftApp;
 use crate::state::{DialogKind, UiState};
 
 /// Top-level menus in Photoshop order.
-pub const TOP_MENUS: [&str; 10] = ["File", "Edit", "Image", "Layer", "Type", "Select", "Filter", "View", "Window", "Help"];
+pub const TOP_MENUS: [&str; 9] = ["File", "Edit", "Image", "Layer", "Type", "Select", "Filter", "View", "Window"];
 
 /// UI-level commands (handled by the shell rather than the engine): id, label, menu, shortcut.
 pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
