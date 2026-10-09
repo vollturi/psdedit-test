@@ -688,10 +688,19 @@ pub fn styles(family: &str) -> Vec<String> {
     if v.is_empty() { vec![tl!("Regular").into()] } else { v }
 }
 
-/// Searchable font-family combo box.
+/// Google Fonts bundled by the web shell at runtime. These are real font files registered
+/// with the text engine, not merely CSS names.
+const GOOGLE_FONT_FAMILIES: &[&str] = &[
+    "Roboto", "Poppins", "Montserrat", "Open Sans", "Oswald", "Nunito", "Raleway",
+    "Playfair Display", "Source Sans 3", "Lato", "Merriweather", "Inter", "Rubik",
+    "Work Sans", "DM Sans", "Archivo", "Bebas Neue", "Anton",
+];
+
+/// Searchable font-family combo box with a clearly labelled Google Fonts section.
 fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
     let mut changed = false;
     let search_id = ui.id().with("font-search");
+    let available = families();
     egui::ComboBox::from_id_salt("type-font").selected_text(current.as_str()).width(width).height(460.0).icon(crate::widgets::chevron_icon).show_ui(ui, |ui| {
         let mut q: String = ui.data(|d| d.get_temp(search_id)).unwrap_or_default();
         let r = ui.add(egui::TextEdit::singleline(&mut q).hint_text(tl!("Search fonts")).desired_width(200.0));
@@ -700,12 +709,35 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
         }
         ui.data_mut(|d| d.insert_temp(search_id, q.clone()));
         let ql = q.to_lowercase();
-        for f in families().iter().filter(|f| ql.is_empty() || f.to_lowercase().contains(&ql)) {
+
+        let mut choose = |ui: &mut egui::Ui, f: &String| {
             if ui.selectable_label(f == current, f).clicked() {
                 *current = f.clone();
                 changed = true;
                 ui.data_mut(|d| d.remove::<String>(search_id));
             }
+        };
+
+        ui.label(tl!("Available fonts"));
+        for f in available.iter().filter(|f| {
+            !GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f))
+                && (ql.is_empty() || f.to_lowercase().contains(&ql))
+        }) {
+            choose(ui, f);
+        }
+
+        let google: Vec<&String> = available.iter().filter(|f| {
+            GOOGLE_FONT_FAMILIES.iter().any(|g| g.eq_ignore_ascii_case(f))
+                && (ql.is_empty() || f.to_lowercase().contains(&ql))
+        }).collect();
+        if !google.is_empty() {
+            ui.separator();
+            ui.label(egui::RichText::new("Google Fonts").strong());
+            for f in google {
+                choose(ui, f);
+            }
+            ui.separator();
+            ui.small("Powered by Google Fonts");
         }
     });
     changed
@@ -796,6 +828,14 @@ pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         style = if st.contains(&style) { style } else { st.first().cloned().unwrap_or_else(|| "Regular".into()) };
         app.ui.tool_options.type_style = style.clone();
         apply(app, ui.ctx(), json!({"font": fam, "fontStyle": style}));
+    }
+    let font_is_missing = !fam.trim().is_empty()
+        && !families().iter().any(|available| available.eq_ignore_ascii_case(&fam));
+    if font_is_missing {
+        ui.colored_label(
+            Color32::from_rgb(210, 65, 55),
+            format!("Font of {fam} is missing"),
+        );
     }
     let opts: Vec<(String, String)> = styles(&fam).into_iter().map(|s| (s.clone(), s)).collect();
     let opts_ref: Vec<(String, &str)> = opts.iter().map(|(a, b)| (a.clone(), b.as_str())).collect();
