@@ -670,18 +670,33 @@ fn weight_name(w: f32) -> &'static str {
 /// Style names ("Regular", "Bold Italic", …) available for a family.
 pub fn styles(family: &str) -> Vec<String> {
     let faces = photocraft_text::shared().lock().map(|mut e| e.fonts.faces(family)).unwrap_or_default();
-    let mut v: Vec<(i32, bool, String)> = faces
-        .iter()
-        .map(|f| {
-            let w = weight_name(f.weight);
-            let name = match (w, f.italic) {
+    let mut v: Vec<(i32, bool, String)> = Vec::new();
+    for face in &faces {
+        // Variable fonts expose their supported weight range through the "wght" axis.
+        // Expand that range into useful named styles so the style picker isn't stuck on
+        // the variable font's default weight (often Regular).
+        let weight_axis = face.axes.iter().find(|(tag, _, _, _)| tag == "wght");
+        let weights: Vec<i32> = if let Some((_, min, default, max)) = weight_axis {
+            let candidates = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+            let mut values: Vec<i32> = candidates.into_iter()
+                .filter(|w| (*w as f32) >= *min && (*w as f32) <= *max)
+                .collect();
+            let d = default.round() as i32;
+            if !values.contains(&d) { values.push(d); }
+            values
+        } else {
+            vec![face.weight.round() as i32]
+        };
+        for weight in weights {
+            let w = weight_name(weight as f32);
+            let name = match (w, face.italic) {
                 ("Regular", true) => "Italic".to_string(),
                 (w, true) => format!("{w} Italic"),
                 (w, false) => w.to_string(),
             };
-            (f.weight.round() as i32, f.italic, name)
-        })
-        .collect();
+            v.push((weight, face.italic, name));
+        }
+    }
     v.sort();
     v.dedup_by(|a, b| a.2 == b.2);
     let v: Vec<String> = v.into_iter().map(|x| x.2).collect();
@@ -712,10 +727,16 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
         ui.data_mut(|d| d.insert_temp(search_id, q.clone()));
         let terms: Vec<String> = q.to_lowercase().split_whitespace().map(str::to_string).collect();
 
+        let normalize = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
         let matches_font = |family: &str| {
-            let family_l = family.to_lowercase();
-            let styles_l = styles(family).join(" ").to_lowercase();
-            terms.iter().all(|term| family_l.contains(term) || styles_l.contains(term))
+            let family_l = normalize(family);
+            let styles_l = normalize(&styles(family).join(" "));
+            // Family-only queries such as "popp" must match the family even if the
+            // font database reports a variable face with only one default style.
+            terms.iter().all(|term| {
+                let term = normalize(term);
+                family_l.contains(&term) || styles_l.contains(&term)
+            })
         };
 
         let mut choose = |ui: &mut egui::Ui, f: &String| {
