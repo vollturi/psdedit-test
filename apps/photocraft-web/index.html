@@ -651,11 +651,14 @@
       const googleFontMetadata = new Map();
       const loadGoogleFontCatalog = async () => {
         try {
-          const response = await fetch("https://fonts.google.com/metadata/fonts");
+          // The official metadata endpoint blocks browser CORS in some environments,
+          // so use a public CORS-enabled mirror of the same Google Fonts catalog.
+          let response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsMeta.json");
+          if (!response.ok) response = await fetch("https://fonts.google.com/metadata/fonts");
           if (!response.ok) throw new Error("Google Fonts catalog request failed");
           const raw = (await response.text()).replace(/^\)\]\}'[,]?\s*/, "");
           const data = JSON.parse(raw);
-          const entries = data.familyMetadataList || [];
+          const entries = data.familyMetadataList || data.items || (Array.isArray(data) ? data : []);
           const families = entries.map(item => item.family).filter(Boolean).sort((a, b) => a.localeCompare(b));
           for (const item of entries) googleFontMetadata.set(item.family, item);
           window.__psdeditGoogleFontFamilies = families;
