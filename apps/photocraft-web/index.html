@@ -647,53 +647,61 @@
       const fontInput = document.getElementById("fontInput");
       const fontStatus = document.getElementById("fontUploadStatus");
 
-      // Load real font binaries into the same Rust text engine used by the canvas.
-      // Names alone or CSS @import do not make fonts available to the PSD text tool.
-      const googleFonts = [
-        ["Roboto", "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf"],
-        ["Poppins", "ofl/poppins/Poppins%5Bwght%5D.ttf"],
-        ["Montserrat", "ofl/montserrat/Montserrat%5Bwght%5D.ttf"],
-        ["Open Sans", "ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf"],
-        ["Oswald", "ofl/oswald/Oswald%5Bwght%5D.ttf"],
-        ["Nunito", "ofl/nunito/Nunito%5Bwght%5D.ttf"],
-        ["Raleway", "ofl/raleway/Raleway%5Bwght%5D.ttf"],
-        ["Playfair Display", "ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf"],
-        ["Source Sans 3", "ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf"],
-        ["Lato", "ofl/lato/Lato-Regular.ttf"],
-        ["Merriweather", "ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf"],
-        ["Inter", "ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"],
-        ["Rubik", "ofl/rubik/Rubik%5Bwght%5D.ttf"],
-        ["Work Sans", "ofl/worksans/WorkSans%5Bwght%5D.ttf"],
-        ["DM Sans", "ofl/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf"],
-        ["Archivo", "ofl/archivo/Archivo%5Bwdth%2Cwght%5D.ttf"],
-        ["Bebas Neue", "ofl/bebasneue/BebasNeue-Regular.ttf"],
-        ["Anton", "ofl/anton/Anton-Regular.ttf"]
-      ];
+      // Fetch the complete Google Fonts catalog. Download a font binary only when selected.
+      const googleFontMetadata = new Map();
+      const loadGoogleFontCatalog = async () => {
+        try {
+          const response = await fetch("https://fonts.google.com/metadata/fonts");
+          if (!response.ok) throw new Error("Google Fonts catalog request failed");
+          const raw = (await response.text()).replace(/^\)\]\}'[,]?\s*/, "");
+          const data = JSON.parse(raw);
+          const entries = data.familyMetadataList || [];
+          const families = entries.map(item => item.family).filter(Boolean).sort((a, b) => a.localeCompare(b));
+          for (const item of entries) googleFontMetadata.set(item.family, item);
+          window.__psdeditGoogleFontFamilies = families;
+          window.dispatchEvent(new CustomEvent("psdedit:google-font-catalog-ready"));
+          console.info("Google Fonts catalog ready:", families.length, "families");
+        } catch (error) {
+          console.error("Could not load Google Fonts catalog:", error);
+          window.__psdeditGoogleFontFamilies = [];
+        }
+      };
+      loadGoogleFontCatalog();
 
-      let loadedGoogleFonts = 0;
-      let googleFontsStarted = false;
-      const loadGoogleFonts = () => {
-        if (googleFontsStarted) return;
-        googleFontsStarted = true;
-        Promise.allSettled(googleFonts.map(async ([family, path]) => {
-          const response = await fetch("https://raw.githubusercontent.com/google/fonts/main/" + path);
-          if (!response.ok) throw new Error("Could not fetch " + family);
+      const loadedGoogleFonts = new Set();
+      window.addEventListener("psdedit:google-font-request", async event => {
+        const family = event.detail && event.detail.family;
+        if (!family || loadedGoogleFonts.has(family)) return;
+        const item = googleFontMetadata.get(family);
+        if (!item) {
+          console.warn("Google Font not found in catalog:", family);
+          return;
+        }
+        const files = item.files || {};
+        const url = files.regular || files["400"] || Object.values(files)[0];
+        if (!url) {
+          console.warn("No downloadable font file for:", family);
+          return;
+        }
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error("Font download failed: " + response.status);
           const bytes = await response.arrayBuffer();
           const file = new File([bytes], family.replace(/[^a-z0-9]+/gi, "-") + ".ttf", { type: "font/ttf" });
           window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
             detail: { name: file.name, file }
           }));
-          loadedGoogleFonts++;
-        })).then(results => {
-          const failed = results.filter(result => result.status === "rejected").length;
-          if (failed) console.warn("Some Google Fonts could not be loaded:", failed);
-          console.info("Google Fonts loaded for PSDEdit:", loadedGoogleFonts, "of", googleFonts.length);
-        });
-      };
-      // Wait until WASM has registered its event listener. Check the persisted flag too,
-      // because WASM can start before this inline script subscribes to the readiness event.
-      window.addEventListener("psdedit:font-listener-ready", loadGoogleFonts, { once: true });
-      if (window.__psdeditFontListenerReady === true) loadGoogleFonts();
+          loadedGoogleFonts.add(family);
+          console.info("Loaded Google Font:", family);
+        } catch (error) {
+          console.error("Could not load Google Font " + family + ":", error);
+        }
+      });
+
+      // Keep the listener handshake for WASM and user-uploaded font support.
+      window.addEventListener("psdedit:font-listener-ready", () => {
+        window.__psdeditFontListenerReady = true;
+      }, { once: true });
 
       fontInput.addEventListener("change", () => {
         const file = fontInput.files && fontInput.files[0];
