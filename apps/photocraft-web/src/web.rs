@@ -158,25 +158,52 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
         let Ok(value) = js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("file")) else { return; };
         let Ok(file) = value.dyn_into::<web_sys::File>() else { return; };
         let name = file.name();
+        let google_family = js_sys::Reflect::get(
+            &detail,
+            &wasm_bindgen::JsValue::from_str("googleFamily"),
+        ).ok().and_then(|v| v.as_string());
         let ctx = font_ctx.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
+            let result = match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
                 Ok(buffer) => {
                     let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-                    let result = photocraft_text::shared()
+                    photocraft_text::shared()
                         .lock()
-                        .map(|mut engine| engine.fonts.register_font_data(bytes));
-                    match result {
-                        Ok(families) if !families.is_empty() => {
-                            log::info!("Registered font file {name}: {}", families.join(", "));
-                        }
-                        Ok(_) => log::warn!("No font family could be read from {name}"),
-                        Err(_) => log::error!("Could not register font file {name}: font engine is busy"),
-                    }
-                    ctx.request_repaint();
+                        .map(|mut engine| engine.fonts.register_font_data(bytes))
+                        .map_err(|_| "font engine is busy".to_string())
                 }
-                Err(error) => log::error!("Could not read font file {name}: {error:?}"),
+                Err(error) => Err(format!("could not read font file: {error:?}")),
+            };
+            let (ok, registered) = match result {
+                Ok(families) if !families.is_empty() => {
+                    log::info!("Registered font file {name}: {}", families.join(", "));
+                    (true, families.join(", "))
+                }
+                Ok(_) => {
+                    log::warn!("No font family could be read from {name}");
+                    (false, "No font family could be read from this file".to_string())
+                }
+                Err(error) => {
+                    log::error!("Could not register font file {name}: {error}");
+                    (false, error)
+                }
+            };
+            // Let the HTML loader know the font really registered. A download alone must
+            // not mark a family as loaded, otherwise a failed parse can never be retried.
+            if let Some(window) = web_sys::window() {
+                let detail = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("ok"), &wasm_bindgen::JsValue::from_bool(ok));
+                let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("registered"), &wasm_bindgen::JsValue::from_str(&registered));
+                if let Some(family) = google_family {
+                    let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("family"), &wasm_bindgen::JsValue::from_str(&family));
+                }
+                let init = web_sys::CustomEventInit::new();
+                init.set_detail(&detail.into());
+                if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict("psdedit:google-font-result", &init) {
+                    let _ = window.dispatch_event(&event);
+                }
             }
+            ctx.request_repaint();
         });
     });
     if window
