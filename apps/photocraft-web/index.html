@@ -677,57 +677,43 @@
 
       const loadedGoogleFonts = new Set();
       const loadingGoogleFonts = new Set();
-      window.addEventListener("psdedit:google-font-result", event => {
-        const detail = event.detail || {};
-        if (!detail.family) return;
-        loadingGoogleFonts.delete(detail.family);
-        if (detail.ok) {
-          loadedGoogleFonts.add(detail.family);
-          console.info("Google Font registered:", detail.family, detail.registered || "");
-        } else {
-          console.error("Google Font registration failed:", detail.family, detail.registered || "Unknown error");
-        }
-      });
+
+      // Register one face at a time so the Rust engine has time to parse each face.
+      // This also makes the font-weight menu reflect the actual styles available.
+      function registerGoogleFontFile(family, file) {
+        return new Promise((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            window.removeEventListener("psdedit:google-font-result", onResult);
+            reject(new Error("Timed out waiting for font registration: " + file.name));
+          }, 15000);
+          const onResult = event => {
+            const detail = event.detail || {};
+            if (detail.family !== family) return;
+            window.clearTimeout(timeout);
+            window.removeEventListener("psdedit:google-font-result", onResult);
+            if (detail.ok) resolve(detail);
+            else reject(new Error(detail.registered || ("Could not register " + file.name)));
+          };
+          window.addEventListener("psdedit:google-font-result", onResult);
+          window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
+            detail: { name: file.name, file, googleFamily: family }
+          }));
+        });
+      }
+
       window.addEventListener("psdedit:google-font-request", async event => {
         const family = event.detail && event.detail.family;
         if (!family || loadedGoogleFonts.has(family) || loadingGoogleFonts.has(family)) return;
         loadingGoogleFonts.add(family);
-        const item = googleFontMetadata.get(family);
-        if (!item) {
-          loadingGoogleFonts.delete(family);
-          console.warn("Google Font not found in catalog:", family);
-          return;
-        }
-        const files = item.files || {};
-        // The TTF API dataset exposes .ttf URLs. Ignore any unsupported WOFF URLs
-        // instead of downloading a file the Rust SFNT parser cannot read.
-        const rawUrl = [files.regular, files["400"], files["500"], files["700"], ...Object.values(files)]
-          .find(value => typeof value === "string" && /\.(ttf|otf|ttc|otc)(?:[?#].*)?$/i.test(new URL(value).pathname));
-        if (!rawUrl) {
-          loadingGoogleFonts.delete(family);
-          console.warn("No supported TTF/OTF download URL for:", family);
-          return;
-        }
-        const url = String(rawUrl).replace(/^http:\/\//i, "https://");
         try {
-          const response = await fetch(url, { mode: "cors", cache: "force-cache" });
-          if (!response.ok) throw new Error("Font download failed: " + response.status);
-          const bytes = await response.arrayBuffer();
-          if (!bytes.byteLength) throw new Error("Downloaded font file is empty");
+          const item = googleFontMetadata.get(family);
+          if (!item) throw new Error("Google Font not found in catalog");
+          const files = item.files || {};
+          const supported = [...new Set(Object.values(files).filter(value =>
+            typeof value === "string" && /\\.(ttf|otf|ttc|otc)(?:[?#].*)?$/i.test(new URL(value).pathname)
+          ))];
+          if (!supported.length) throw new Error("No supported TTF/OTF files are available for this family");
 
-          // Keep the actual extension: Google Fonts catalog entries can be WOFF/WOFF2,
-          // and naming those files .ttf can hide format problems while registering them.
-          const path = new URL(url).pathname;
-          const match = path.match(/\.([a-z0-9]+)$/i);
-          const extension = match ? match[1].toLowerCase() : "";
-          if (!["ttf", "otf", "ttc", "otc"].includes(extension)) {
-            throw new Error("Unsupported font format (" + (extension || "unknown") + "). The editor needs TTF/OTF font files.");
-          }
-          const safeName = family.replace(/[^a-z0-9]+/gi, "-");
-          const mime = extension === "ttf" ? "font/ttf" : extension === "otf" ? "font/otf" : "application/octet-stream";
-          const file = new File([bytes], safeName + "." + extension, { type: mime });
-
-          // Wait for the Rust listener handshake so a quick download cannot be lost.
           if (!window.__psdeditFontListenerReady) {
             await new Promise((resolve, reject) => {
               const timeout = window.setTimeout(() => {
@@ -742,13 +728,32 @@
               window.addEventListener("psdedit:font-listener-ready", onReady, { once: true });
             });
           }
-          window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
-            detail: { name: file.name, file, googleFamily: family }
-          }));
-          console.info("Downloaded Google Font:", family, extension, bytes.byteLength, "bytes; waiting for editor registration");
+
+          const registeredFaces = [];
+          for (const rawUrl of supported) {
+            const url = String(rawUrl).replace(/^http:\/\//i, "https://");
+            const response = await fetch(url, { mode: "cors", cache: "force-cache" });
+            if (!response.ok) throw new Error("Font download failed (" + response.status + "): " + url);
+            const bytes = await response.arrayBuffer();
+            if (!bytes.byteLength) throw new Error("Downloaded font file is empty: " + url);
+            const path = new URL(url).pathname;
+            const extension = path.match(/\\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
+            if (!["ttf", "otf", "ttc", "otc"].includes(extension)) {
+              throw new Error("Unsupported font format: " + extension);
+            }
+            const safeName = family.replace(/[^a-z0-9]+/gi, "-");
+            const file = new File([bytes], safeName + "-" + registeredFaces.length + "." + extension, {
+              type: extension === "ttf" ? "font/ttf" : extension === "otf" ? "font/otf" : "application/octet-stream"
+            });
+            const result = await registerGoogleFontFile(family, file);
+            registeredFaces.push(result.registered || file.name);
+          }
+          loadedGoogleFonts.add(family);
+          console.info("Google Font registered:", family, registeredFaces.join("; "));
         } catch (error) {
+          console.error("Could not load Google Font " + family + ":", error);
+        } finally {
           loadingGoogleFonts.delete(family);
-          console.error("Could not load Google Font " + family + " from " + url + ":", error);
         }
       });
 
