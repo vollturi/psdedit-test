@@ -648,10 +648,9 @@ pub fn draw_overlay(app: &mut PhotocraftApp, painter: &egui::Painter, xf: &ViewX
     }
 }
 
-/// Font families (bundled + system), cached for the process.
-pub fn families() -> &'static [String] {
-    static FAMILIES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    FAMILIES.get_or_init(|| photocraft_text::shared().lock().map(|mut e| e.fonts.families()).unwrap_or_default())
+/// Font families (bundled + system + fonts uploaded during this session).
+pub fn families() -> Vec<String> {
+    photocraft_text::shared().lock().map(|mut e| e.fonts.families()).unwrap_or_default()
 }
 
 fn weight_name(w: f32) -> &'static str {
