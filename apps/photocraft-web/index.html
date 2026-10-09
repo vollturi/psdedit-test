@@ -671,7 +671,10 @@
       ];
 
       let loadedGoogleFonts = 0;
+      let googleFontsStarted = false;
       const loadGoogleFonts = () => {
+        if (googleFontsStarted) return;
+        googleFontsStarted = true;
         Promise.allSettled(googleFonts.map(async ([family, path]) => {
           const response = await fetch("https://raw.githubusercontent.com/google/fonts/main/" + path);
           if (!response.ok) throw new Error("Could not fetch " + family);
@@ -687,8 +690,10 @@
           console.info("Google Fonts loaded for PSDEdit:", loadedGoogleFonts, "of", googleFonts.length);
         });
       };
-      // Wait until WASM has registered its event listener; otherwise font files may arrive too early.
+      // Wait until WASM has registered its event listener. Check the persisted flag too,
+      // because WASM can start before this inline script subscribes to the readiness event.
       window.addEventListener("psdedit:font-listener-ready", loadGoogleFonts, { once: true });
+      if (window.__psdeditFontListenerReady === true) loadGoogleFonts();
 
       fontInput.addEventListener("change", () => {
         const file = fontInput.files && fontInput.files[0];
