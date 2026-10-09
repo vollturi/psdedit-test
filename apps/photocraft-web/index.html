@@ -657,8 +657,7 @@
           // entries point to actual TrueType files supported by the editor's font parser.
           // The newer site metadata endpoint often points at WOFF2, which cannot be parsed
           // by the current Rust font engine and caused selected families to appear as Missing.
-          let response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsAPI_ttf.json");
-          if (!response.ok) response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsAPI.json");
+          let response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsAPI.json");
           if (!response.ok) response = await fetch("https://cdn.jsdelivr.net/gh/herrstrietzel/fonthelpers@main/json/gfontsMeta.json");
           if (!response.ok) throw new Error("Google Fonts catalog request failed");
           const raw = (await response.text()).replace(/^\)\]\}'[,]?\s*/, "");
@@ -703,22 +702,28 @@
           // Keep the actual extension: Google Fonts catalog entries can be WOFF/WOFF2,
           // and naming those files .ttf can hide format problems while registering them.
           const path = new URL(url).pathname;
-          const extension = (path.match(/\.(ttf|otf|ttc|otc)$/i) || [null, "ttf"])[1].toLowerCase();
+          const match = path.match(/\.([a-z0-9]+)$/i);
+          const extension = match ? match[1].toLowerCase() : "";
           if (!["ttf", "otf", "ttc", "otc"].includes(extension)) {
-            throw new Error("This font source provides " + extension.toUpperCase() + ", but the editor requires TTF/OTF. Choose another font source.");
+            throw new Error("Unsupported font format (" + (extension || "unknown") + "). The editor needs TTF/OTF font files.");
           }
           const safeName = family.replace(/[^a-z0-9]+/gi, "-");
-          const mime = extension.startsWith("woff") ? "font/" + extension : "font/" + extension;
+          const mime = extension === "ttf" ? "font/ttf" : extension === "otf" ? "font/otf" : "application/octet-stream";
           const file = new File([bytes], safeName + "." + extension, { type: mime });
 
           // Wait for the Rust listener handshake so a quick download cannot be lost.
           if (!window.__psdeditFontListenerReady) {
-            await new Promise(resolve => {
+            await new Promise((resolve, reject) => {
+              const timeout = window.setTimeout(() => {
+                window.removeEventListener("psdedit:font-listener-ready", onReady);
+                reject(new Error("Editor font listener did not start"));
+              }, 15000);
               const onReady = () => {
+                window.clearTimeout(timeout);
                 window.removeEventListener("psdedit:font-listener-ready", onReady);
                 resolve();
               };
-              window.addEventListener("psdedit:font-listener-ready", onReady);
+              window.addEventListener("psdedit:font-listener-ready", onReady, { once: true });
             });
           }
           window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
