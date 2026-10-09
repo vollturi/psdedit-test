@@ -186,6 +186,13 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
         font_callback.forget();
         // Tell the HTML shell the Rust listener is ready before it starts fetching fonts.
         // Without this handshake, fast font downloads can finish before WASM installs the listener.
+        // Persist readiness as well as dispatching an event: the inline HTML script can
+        // execute after WASM startup, so it must be able to detect that readiness already happened.
+        let _ = js_sys::Reflect::set(
+            window.as_ref(),
+            &wasm_bindgen::JsValue::from_str("__psdeditFontListenerReady"),
+            &wasm_bindgen::JsValue::TRUE,
+        );
         let ready = web_sys::CustomEvent::new("psdedit:font-listener-ready");
         if let Ok(event) = ready {
             let _ = window.dispatch_event(&event);
