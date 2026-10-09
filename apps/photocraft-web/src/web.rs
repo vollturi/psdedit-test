@@ -47,6 +47,7 @@ pub fn start() {
                 Box::new(move |cc| {
                     PhotocraftApp::setup_context(&cc.egui_ctx, ThemeKind::Pro);
                     let inbox: Inbox = Arc::default();
+                    listen_selected_file(inbox.clone(), cc.egui_ctx.clone());
                     let mut app = PhotocraftApp::new(Session::new(), services(inbox.clone(), cc.egui_ctx.clone()));
                     listen_pen(&pen_target, app.stylus.feed.clone());
                     app.set_theme(&cc.egui_ctx, ThemeKind::Pro);
@@ -96,6 +97,57 @@ fn listen_pen(target: &web_sys::HtmlCanvasElement, feed: photocraft_ui_egui::sty
         if target.add_event_listener_with_callback(kind, cb.as_ref().unchecked_ref()).is_ok() {
             cb.forget();
         }
+    }
+}
+
+
+fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
+    use wasm_bindgen::closure::Closure;
+
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+
+    let callback = Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+        let Some(event) = event.dyn_ref::<web_sys::CustomEvent>() else {
+            return;
+        };
+
+        let detail = event.detail();
+        let Ok(value) = js_sys::Reflect::get(
+            &detail,
+            &wasm_bindgen::JsValue::from_str("file"),
+        ) else {
+            return;
+        };
+        let Ok(file) = value.dyn_into::<web_sys::File>() else {
+            return;
+        };
+
+        let name = file.name();
+        let inbox = inbox.clone();
+        let ctx = ctx.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
+                Ok(buffer) => {
+                    let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
+                    inbox.lock().unwrap_or_else(|e| e.into_inner()).push((name, bytes));
+                    ctx.request_repaint();
+                }
+                Err(error) => log::error!("Could not read selected file: {error:?}"),
+            }
+        });
+    });
+
+    if window
+        .add_event_listener_with_callback(
+            "psdedit:file-selected",
+            callback.as_ref().unchecked_ref(),
+        )
+        .is_ok()
+    {
+        callback.forget();
     }
 }
 

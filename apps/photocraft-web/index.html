@@ -1,30 +1,622 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>PhotoCraft</title>
-  <link data-trunk rel="rust" data-bin="photocraft-web" data-cargo-profile="wasm-release" data-cargo-features="heif" data-wasm-opt="z" data-weak-refs />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+
+  <title>Photoshop Online (Little Version) – Free PSD Editor | PSDEdit</title>
+  <meta name="description" content="Edit PSD files online for free with PSDEdit. Open Photoshop documents directly in your browser. No login or Photoshop installation required.">
+  <link rel="canonical" href="https://pixelsdesign.site/editor/">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link data-trunk rel="rust"
+        data-bin="photocraft-web"
+        data-cargo-profile="wasm-release"
+        data-cargo-features="heif"
+        data-wasm-opt="z"
+        data-weak-refs>
+
   <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #262626; }
-    #photocraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    #photocraft_loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 0 16px; text-align: center; color: #b8b8b8; font: 14px system-ui, sans-serif; pointer-events: none; }
-    #photocraft_loading p { margin: 0 0 8px; max-width: 420px; line-height: 1.5; }
-    #photocraft_loading a { color: #e0e0e0; pointer-events: auto; }
-    /* The app removes this element once it runs. If the WebAssembly never downloads or doesn't match
-       this page, no Rust runs to say so, so the page itself shows what to do after a while. */
-    #photocraft_stalled { color: #8c8c8c; visibility: hidden; animation: photocraft-stalled 0s 20s forwards; }
-    @keyframes photocraft-stalled { to { visibility: visible; } }
+    :root {
+      --green: #9ee24e;
+      --ink: #171717;
+      --muted: #707070;
+      --line: #eaeaea;
+      --soft: #f8f8f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      font-family: "Poppins", sans-serif;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    body { overflow-x: hidden; }
+
+    button, input { font: inherit; }
+
+    button, a { -webkit-tap-highlight-color: transparent; }
+
+    .landing {
+      min-height: 100vh;
+      background: #fff;
+    }
+
+    .topbar {
+      max-width: 1240px;
+      margin: auto;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .brand img {
+      display: block;
+      width: 190px;
+      max-width: 42vw;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .market-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 17px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: border-color .2s, background .2s;
+    }
+
+    .market-link:hover {
+      border-color: var(--green);
+      background: #fbfff6;
+    }
+
+    .hero {
+      max-width: 1120px;
+      margin: auto;
+      padding: 72px 28px 48px;
+      display: grid;
+      grid-template-columns: 1fr 0.92fr;
+      gap: 52px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 20px;
+      padding: 7px 12px;
+      border: 1px solid #ededed;
+      border-radius: 7px;
+      color: #444;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(36px, 4.3vw, 57px);
+      line-height: 1.12;
+      letter-spacing: -2.6px;
+      font-weight: 700;
+    }
+
+    h1 span { color: #656565; }
+
+    .intro {
+      max-width: 510px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.85;
+    }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 20px;
+      margin-top: 28px;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #444;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .feature-icon {
+      color: #5c5c5c;
+      font-size: 15px;
+    }
+
+    .upload-card {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 14px 45px rgba(0,0,0,.045);
+    }
+
+    .dropzone {
+      min-height: 310px;
+      padding: 28px 18px;
+      border: 1px dashed #cfcfcf;
+      border-radius: 12px;
+      background: #fcfcfc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      transition: background .2s, border-color .2s;
+    }
+
+    .dropzone.dragging {
+      background: #f8fff0;
+      border-color: var(--green);
+    }
+
+    .upload-icon {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      background: #f0f0f0;
+      color: #222;
+      margin-bottom: 18px;
+    }
+
+    .upload-icon svg {
+      width: 27px;
+      height: 27px;
+    }
+
+    .dropzone h2 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: -.5px;
+    }
+
+    .dropzone p {
+      margin: 9px 0 19px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .upload-button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 9px;
+      min-height: 48px;
+      padding: 0 25px;
+      border: 1px solid var(--ink);
+      border-radius: 9px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .2s, background .2s;
+    }
+
+    .upload-button:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    .file-note {
+      margin-top: 13px;
+      color: #858585;
+      font-size: 10px;
+    }
+
+    .font-strip {
+      max-width: 1120px;
+      margin: 0 auto 42px;
+      padding: 19px 28px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .font-copy strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .font-copy span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .font-samples {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .font-samples span {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: #444;
+      font-size: 11px;
+      background: #fff;
+    }
+
+    .faq {
+      max-width: 940px;
+      margin: auto;
+      padding: 25px 28px 70px;
+    }
+
+    .faq-heading {
+      margin-bottom: 22px;
+      text-align: center;
+    }
+
+    .faq-heading h2 {
+      margin: 0;
+      font-size: 25px;
+      letter-spacing: -.8px;
+    }
+
+    .faq-heading p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .faq-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    details {
+      padding: 15px 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    summary {
+      position: relative;
+      padding-right: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary::after {
+      content: "+";
+      position: absolute;
+      right: 0;
+      top: -2px;
+      color: #666;
+      font-size: 17px;
+      font-weight: 400;
+    }
+
+    details[open] summary::after { content: "−"; }
+
+    details p {
+      margin: 11px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
+    footer {
+      padding: 22px 20px;
+      border-top: 1px solid var(--line);
+      text-align: center;
+      color: #777;
+      font-size: 11px;
+    }
+
+    footer a {
+      color: #444;
+      text-decoration: none;
+    }
+
+    #photocraft_canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #photocraft_loading { display: none !important; }
+
+    body.editor-mode {
+      overflow: hidden;
+      background: #262626;
+    }
+
+    body.editor-mode .landing { display: none; }
+
+    body.editor-mode #photocraft_canvas {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    @media (max-width: 760px) {
+      .topbar { padding: 15px 18px; }
+
+      .brand img { width: 155px; }
+
+      .market-link {
+        padding: 9px 12px;
+        font-size: 12px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 28px;
+        padding: 42px 20px 28px;
+      }
+
+      h1 {
+        font-size: clamp(36px, 10vw, 49px);
+        letter-spacing: -1.8px;
+      }
+
+      .intro {
+        font-size: 13px;
+        line-height: 1.8;
+      }
+
+      .features { gap: 11px 16px; }
+
+      .dropzone {
+        min-height: 250px;
+        padding: 25px 14px;
+      }
+
+      .font-strip {
+        margin-bottom: 20px;
+        padding: 20px;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .font-samples { justify-content: flex-start; }
+
+      .faq { padding: 28px 20px 45px; }
+
+      .faq-heading h2 { font-size: 22px; }
+
+      .faq-list { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+      }
+    }
   </style>
 </head>
+
 <body>
+  <main class="landing" id="landing">
+    <header class="topbar">
+      <a class="brand" href="https://pixelsdesign.site/market/" aria-label="PixelsDesign Marketplace">
+        <img
+          src="https://pixelsdesign.site/market/wp-content/uploads/2023/08/pixelsdesign-logo.jpg"
+          alt="PixelsDesign">
+      </a>
+
+      <a class="market-link" href="https://pixelsdesign.site/market/">
+        Marketplace <span aria-hidden="true">↗</span>
+      </a>
+    </header>
+
+    <section class="hero">
+      <div>
+        <span class="eyebrow">Free online PSD editor</span>
+
+        <h1>Photoshop Online.<br><span>The Little Version.</span></h1>
+
+        <p class="intro">
+          Edit your PSD files directly in your browser.
+          Open your design and get started without installing Photoshop
+          or creating an account.
+        </p>
+
+        <div class="features">
+          <div class="feature"><span class="feature-icon">✓</span> Free to use</div>
+          <div class="feature"><span class="feature-icon">✓</span> No login required</div>
+          <div class="feature"><span class="feature-icon">✓</span> Works in your browser</div>
+          <div class="feature"><span class="feature-icon">✓</span> PSD file support</div>
+        </div>
+      </div>
+
+      <div class="upload-card">
+        <div class="dropzone" id="dropzone">
+          <div class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4"></path>
+              <path d="m7 9 5-5 5 5"></path>
+              <path d="M20 16.5v2A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-2"></path>
+            </svg>
+          </div>
+
+          <h2>Drop your PSD here</h2>
+          <p>Drag and drop your Photoshop file<br>or choose it from your device.</p>
+
+          <button class="upload-button" id="uploadButton" type="button">
+            Upload PSD File <span aria-hidden="true">↗</span>
+          </button>
+
+          <input id="psdInput" type="file" accept=".psd,.psb"
+                 hidden>
+
+          <div class="file-note" id="fileNote">Supports PSD and PSB files</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="font-strip" aria-label="Font information">
+      <div class="font-copy">
+        <strong>More creative freedom</strong>
+        <span>Designed for quick edits to your PSD files.</span>
+      </div>
+
+      <div class="font-samples" aria-label="Popular font families">
+        <span style="font-family:Poppins,sans-serif">Poppins</span>
+        <span style="font-family:Arial,sans-serif">Arial</span>
+        <span style="font-family:Georgia,serif">Georgia</span>
+        <span style="font-family:monospace">Mono</span>
+      </div>
+    </section>
+
+    <section class="faq" id="faq">
+      <div class="faq-heading">
+        <h2>Frequently Asked Questions</h2>
+        <p>Everything you need to know before you start.</p>
+      </div>
+
+      <div class="faq-list">
+        <details>
+          <summary>What is PSDEdit?</summary>
+          <p>PSDEdit is a browser-based tool designed to help you open and edit PSD documents online.</p>
+        </details>
+
+        <details>
+          <summary>Is PSDEdit free to use?</summary>
+          <p>Yes. PSDEdit is free to use and does not require an account.</p>
+        </details>
+
+        <details>
+          <summary>Do I need Photoshop installed?</summary>
+          <p>No. You can access PSDEdit in a supported modern browser without installing Photoshop.</p>
+        </details>
+
+        <details>
+          <summary>Do I need to create an account?</summary>
+          <p>No account or login is required to get started.</p>
+        </details>
+
+        <details>
+          <summary>Which files can I open?</summary>
+          <p>The editor supports PSD files. Support for other formats depends on the capabilities of the editor.</p>
+        </details>
+
+        <details>
+          <summary>Can I use PSDEdit on my phone?</summary>
+          <p>You can open the website on a mobile browser, but editing complex PSD documents is generally easier on a desktop or laptop.</p>
+        </details>
+      </div>
+    </section>
+
+    <footer>
+      <span>PSDEdit by PixelsDesign</span>
+      &nbsp;·&nbsp;
+      <a href="https://pixelsdesign.site/market/">Marketplace</a>
+    </footer>
+  </main>
+
   <canvas id="photocraft_canvas"></canvas>
-  <div id="photocraft_loading">
-    <p>Loading PhotoCraft&hellip;</p>
-    <p id="photocraft_stalled">This is taking longer than usual. If PhotoCraft doesn't start, its files may have failed to
-      download or come from a different version of this page. <a href="">Reload</a> to try again; the browser
-      console lists what failed.</p>
+  <div id="photocraft_loading" aria-live="polite">
+    <p>Loading PSDEdit…</p>
   </div>
+
+  <script>
+    (() => {
+      const input = document.getElementById("psdInput");
+      const button = document.getElementById("uploadButton");
+      const dropzone = document.getElementById("dropzone");
+      const note = document.getElementById("fileNote");
+
+      button.addEventListener("click", () => input.click());
+
+      function openEditor(file) {
+        if (!file) return;
+
+        const extension = file.name.split(".").pop().toLowerCase();
+        if (!["psd", "psb"].includes(extension)) {
+          note.textContent = "Please choose a PSD or PSB file.";
+          return;
+        }
+
+        note.textContent = file.name;
+        document.body.classList.add("editor-mode");
+
+        /*
+         * This first UI prototype reveals the existing editor.
+         * The selected file still needs to be passed into the Rust/WebAssembly
+         * import inbox in a separate implementation step.
+         */
+        window.dispatchEvent(new CustomEvent("psdedit:file-selected", {
+          detail: { name: file.name, file }
+        }));
+      }
+
+      input.addEventListener("change", () => {
+        if (input.files && input.files.length) {
+          openEditor(input.files[0]);
+        }
+      });
+
+      ["dragenter", "dragover"].forEach(eventName => {
+        dropzone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropzone.classList.add("dragging");
+        });
+      });
+
+      ["dragleave", "drop"].forEach(eventName => {
+        dropzone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropzone.classList.remove("dragging");
+        });
+      });
+
+      dropzone.addEventListener("drop", event => {
+        const file = event.dataTransfer && event.dataTransfer.files[0];
+        openEditor(file);
+      });
+    })();
+  </script>
 </body>
 </html>
