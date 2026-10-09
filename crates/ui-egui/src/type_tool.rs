@@ -752,6 +752,20 @@ fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32) -> bool {
             if ui.selectable_label(f == current, label).clicked() {
                 *current = f.clone();
                 changed = true;
+                if google_catalog.iter().any(|family| family.eq_ignore_ascii_case(f)) {
+                    if let (Some(window), Ok(event)) = (
+                        web_sys::window(),
+                        web_sys::CustomEvent::new("psdedit:google-font-request"),
+                    ) {
+                        let detail = js_sys::Object::new();
+                        let _ = js_sys::Reflect::set(&detail, &wasm_bindgen::JsValue::from_str("family"), &wasm_bindgen::JsValue::from_str(f));
+                        let init = web_sys::CustomEventInit::new();
+                        init.set_detail(&detail.into());
+                        if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict("psdedit:google-font-request", &init) {
+                            let _ = window.dispatch_event(&event);
+                        }
+                    }
+                }
                 ui.data_mut(|d| d.remove::<String>(search_id));
             }
         };
