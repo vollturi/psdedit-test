@@ -676,11 +676,25 @@
       loadGoogleFontCatalog();
 
       const loadedGoogleFonts = new Set();
+      const loadingGoogleFonts = new Set();
+      window.addEventListener("psdedit:google-font-result", event => {
+        const detail = event.detail || {};
+        if (!detail.family) return;
+        loadingGoogleFonts.delete(detail.family);
+        if (detail.ok) {
+          loadedGoogleFonts.add(detail.family);
+          console.info("Google Font registered:", detail.family, detail.registered || "");
+        } else {
+          console.error("Google Font registration failed:", detail.family, detail.registered || "Unknown error");
+        }
+      });
       window.addEventListener("psdedit:google-font-request", async event => {
         const family = event.detail && event.detail.family;
-        if (!family || loadedGoogleFonts.has(family)) return;
+        if (!family || loadedGoogleFonts.has(family) || loadingGoogleFonts.has(family)) return;
+        loadingGoogleFonts.add(family);
         const item = googleFontMetadata.get(family);
         if (!item) {
+          loadingGoogleFonts.delete(family);
           console.warn("Google Font not found in catalog:", family);
           return;
         }
@@ -689,6 +703,7 @@
         // mirrors contain legacy http:// font URLs which browsers block as mixed content.
         const rawUrl = files.regular || files["400"] || files["500"] || files["700"] || Object.values(files).find(Boolean);
         if (!rawUrl) {
+          loadingGoogleFonts.delete(family);
           console.warn("No downloadable font file for:", family);
           return;
         }
@@ -729,10 +744,9 @@
           window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
             detail: { name: file.name, file, googleFamily: family }
           }));
-          // Give the editor a chance to register the font before suppressing retries.
-          window.setTimeout(() => loadedGoogleFonts.add(family), 1200);
-          console.info("Downloaded Google Font:", family, extension, bytes.byteLength, "bytes");
+          console.info("Downloaded Google Font:", family, extension, bytes.byteLength, "bytes; waiting for editor registration");
         } catch (error) {
+          loadingGoogleFonts.delete(family);
           console.error("Could not load Google Font " + family + " from " + url + ":", error);
         }
       });
