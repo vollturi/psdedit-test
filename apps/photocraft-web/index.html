@@ -699,12 +699,13 @@
           return;
         }
         const files = item.files || {};
-        // Prefer the regular face, but fall back to any available face. Some catalog
-        // mirrors contain legacy http:// font URLs which browsers block as mixed content.
-        const rawUrl = files.regular || files["400"] || files["500"] || files["700"] || Object.values(files).find(Boolean);
+        // The TTF API dataset exposes .ttf URLs. Ignore any unsupported WOFF URLs
+        // instead of downloading a file the Rust SFNT parser cannot read.
+        const rawUrl = [files.regular, files["400"], files["500"], files["700"], ...Object.values(files)]
+          .find(value => typeof value === "string" && /\.(ttf|otf|ttc|otc)(?:[?#].*)?$/i.test(new URL(value).pathname));
         if (!rawUrl) {
           loadingGoogleFonts.delete(family);
-          console.warn("No downloadable font file for:", family);
+          console.warn("No supported TTF/OTF download URL for:", family);
           return;
         }
         const url = String(rawUrl).replace(/^http:\/\//i, "https://");
