@@ -681,23 +681,29 @@
           return;
         }
         const files = item.files || {};
-        const url = files.regular || files["400"] || Object.values(files)[0];
-        if (!url) {
+        // Prefer the regular face, but fall back to any available face. Some catalog
+        // mirrors contain legacy http:// font URLs which browsers block as mixed content.
+        const rawUrl = files.regular || files["400"] || files["500"] || files["700"] || Object.values(files).find(Boolean);
+        if (!rawUrl) {
           console.warn("No downloadable font file for:", family);
           return;
         }
+        const url = String(rawUrl).replace(/^http:\/\//i, "https://");
         try {
-          const response = await fetch(url);
+          const response = await fetch(url, { mode: "cors", cache: "force-cache" });
           if (!response.ok) throw new Error("Font download failed: " + response.status);
           const bytes = await response.arrayBuffer();
-          const file = new File([bytes], family.replace(/[^a-z0-9]+/gi, "-") + ".ttf", { type: "font/ttf" });
+          if (!bytes.byteLength) throw new Error("Downloaded font file is empty");
+          const safeName = family.replace(/[^a-z0-9]+/gi, "-");
+          const file = new File([bytes], safeName + ".ttf", { type: "font/ttf" });
+          // Rust registers the font from this event; only mark it loaded after dispatch.
           window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
             detail: { name: file.name, file }
           }));
           loadedGoogleFonts.add(family);
-          console.info("Loaded Google Font:", family);
+          console.info("Loaded Google Font:", family, bytes.byteLength, "bytes");
         } catch (error) {
-          console.error("Could not load Google Font " + family + ":", error);
+          console.error("Could not load Google Font " + family + " from " + url + ":", error);
         }
       });
 
