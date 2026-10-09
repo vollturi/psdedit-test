@@ -366,6 +366,42 @@
 
     #photocraft_loading { display: none !important; }
 
+    #fontUploadControl {
+      display: none;
+      position: fixed;
+      z-index: 20;
+      top: 12px;
+      right: 14px;
+      align-items: center;
+      gap: 8px;
+      max-width: calc(100vw - 28px);
+      font: 12px/1.4 system-ui, sans-serif;
+    }
+
+    body.editor-mode #fontUploadControl { display: flex; }
+
+    #fontUploadControl label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 13px;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: #fff;
+      color: #222;
+      cursor: pointer;
+      box-shadow: 0 2px 8px #0002;
+    }
+
+    #fontUploadStatus {
+      max-width: 180px;
+      color: #fff;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px #000;
+    }
+
     body.editor-mode {
       overflow: hidden;
       background: #262626;
@@ -556,6 +592,11 @@
     </footer>
   </main>
 
+  <div id="fontUploadControl" aria-label="Upload a font">
+    <label for="fontInput">＋ Upload font</label>
+    <input id="fontInput" type="file" accept=".ttf,.otf,.ttc,.otc" hidden>
+    <span id="fontUploadStatus" role="status"></span>
+  </div>
   <canvas id="photocraft_canvas"></canvas>
   <div id="photocraft_loading" aria-live="polite">
     <p>Loading PSDEdit…</p>
@@ -569,6 +610,27 @@
       const note = document.getElementById("fileNote");
 
       button.addEventListener("click", () => input.click());
+
+      const fontInput = document.getElementById("fontInput");
+      const fontStatus = document.getElementById("fontUploadStatus");
+      fontInput.addEventListener("change", () => {
+        const file = fontInput.files && fontInput.files[0];
+        if (!file) return;
+        const ext = file.name.split(".").pop().toLowerCase();
+        if (!["ttf", "otf", "ttc", "otc"].includes(ext)) {
+          fontStatus.textContent = "Choose a TTF or OTF font.";
+          fontInput.value = "";
+          return;
+        }
+        fontStatus.textContent = "Loading " + file.name + "…";
+        window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
+          detail: { name: file.name, file }
+        }));
+        window.setTimeout(() => {
+          fontStatus.textContent = "Font sent to editor";
+          fontInput.value = "";
+        }, 700);
+      });
 
       function openEditor(file) {
         if (!file) return;
