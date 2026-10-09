@@ -694,14 +694,31 @@
           if (!response.ok) throw new Error("Font download failed: " + response.status);
           const bytes = await response.arrayBuffer();
           if (!bytes.byteLength) throw new Error("Downloaded font file is empty");
+
+          // Keep the actual extension: Google Fonts catalog entries can be WOFF/WOFF2,
+          // and naming those files .ttf can hide format problems while registering them.
+          const path = new URL(url).pathname;
+          const extension = (path.match(/\\.(ttf|otf|woff2?|ttc|otc)(?:$|\\?)/i) || [null, "ttf"])[1].toLowerCase();
           const safeName = family.replace(/[^a-z0-9]+/gi, "-");
-          const file = new File([bytes], safeName + ".ttf", { type: "font/ttf" });
-          // Rust registers the font from this event; only mark it loaded after dispatch.
+          const mime = extension.startsWith("woff") ? "font/" + extension : "font/" + extension;
+          const file = new File([bytes], safeName + "." + extension, { type: mime });
+
+          // Wait for the Rust listener handshake so a quick download cannot be lost.
+          if (!window.__psdeditFontListenerReady) {
+            await new Promise(resolve => {
+              const onReady = () => {
+                window.removeEventListener("psdedit:font-listener-ready", onReady);
+                resolve();
+              };
+              window.addEventListener("psdedit:font-listener-ready", onReady);
+            });
+          }
           window.dispatchEvent(new CustomEvent("psdedit:font-selected", {
-            detail: { name: file.name, file }
+            detail: { name: file.name, file, googleFamily: family }
           }));
-          loadedGoogleFonts.add(family);
-          console.info("Loaded Google Font:", family, bytes.byteLength, "bytes");
+          // Give the editor a chance to register the font before suppressing retries.
+          window.setTimeout(() => loadedGoogleFonts.add(family), 1200);
+          console.info("Downloaded Google Font:", family, extension, bytes.byteLength, "bytes");
         } catch (error) {
           console.error("Could not load Google Font " + family + " from " + url + ":", error);
         }
