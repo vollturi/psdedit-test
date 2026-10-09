@@ -364,7 +364,46 @@
       z-index: 1;
     }
 
-    #photocraft_loading { display: none !important; }
+    #photocraft_loading {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      background: #202020;
+      color: #f5f5f5;
+      text-align: center;
+      font: 500 14px/1.6 "Poppins", sans-serif;
+    }
+
+    body.editor-mode #photocraft_loading:not(.is-hidden) { display: flex; }
+
+    #photocraft_loading .loading-mark {
+      width: 42px;
+      height: 42px;
+      border: 3px solid #454545;
+      border-top-color: #9ee24e;
+      border-radius: 50%;
+      animation: psdedit-spin .8s linear infinite;
+    }
+
+    #photocraft_loading p { margin: 0; }
+
+    #photocraft_loading .loading-detail {
+      color: #a8a8a8;
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    #photocraft_loading.is-hidden { display: none !important; }
+
+    @keyframes psdedit-spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #photocraft_loading .loading-mark { animation: none; }
 
     #fontUploadControl {
       display: none;
@@ -631,8 +670,10 @@
     <span id="fontUploadStatus" role="status"></span>
   </div>
   <canvas id="photocraft_canvas"></canvas>
-  <div id="photocraft_loading" aria-live="polite">
-    <p>Loading PSDEdit…</p>
+  <div id="photocraft_loading" aria-live="polite" role="status">
+    <div class="loading-mark" aria-hidden="true"></div>
+    <p id="photocraft_loading_title">Preparing your editor…</p>
+    <p class="loading-detail" id="photocraft_loading_detail">Please wait while your file is being read.</p>
   </div>
 
   <script>
@@ -788,6 +829,28 @@
         }));
       });
 
+      const loading = document.getElementById("photocraft_loading");
+      const loadingTitle = document.getElementById("photocraft_loading_title");
+      const loadingDetail = document.getElementById("photocraft_loading_detail");
+
+      window.addEventListener("psdedit:file-read", () => {
+        loadingTitle.textContent = "Opening your document…";
+        loadingDetail.textContent = "Your file has been read. Preparing the editor.";
+        // Give the editor a frame to display its own document/open progress UI.
+        window.requestAnimationFrame(() => {
+          window.setTimeout(() => loading.classList.add("is-hidden"), 250);
+        });
+      });
+
+      window.addEventListener("psdedit:file-read-error", () => {
+        loadingTitle.textContent = "Could not read this file";
+        loadingDetail.textContent = "Please try selecting the PSD again.";
+        window.setTimeout(() => {
+          loading.classList.add("is-hidden");
+          document.body.classList.remove("editor-mode");
+        }, 1800);
+      });
+
       function openEditor(file) {
         if (!file) return;
 
@@ -798,10 +861,13 @@
         }
 
         note.textContent = file.name;
+        loadingTitle.textContent = "Preparing your editor…";
+        loadingDetail.textContent = "Reading " + file.name;
+        loading.classList.remove("is-hidden");
         document.body.classList.add("editor-mode");
 
-        // The Rust/WebAssembly shell listens for this event, reads the File bytes,
-        // and pushes them into the same inbox used by drag-and-drop and File > Open.
+        // The Rust/WebAssembly shell reads the file asynchronously, then signals
+        // the page so the editor can take over without an unexplained blank screen.
         window.dispatchEvent(new CustomEvent("psdedit:file-selected", {
           detail: { name: file.name, file }
         }));
