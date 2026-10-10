@@ -133,7 +133,13 @@
       font-weight: 700;
     }
 
-    h1 span { color: #656565; }
+    h1 span {
+      background: linear-gradient(100deg, #0b24c5 0%, #008afb 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: #0b24c5;
+    }
 
     .intro {
       max-width: 510px;
@@ -302,9 +308,10 @@
     }
 
     .faq {
-      max-width: 940px;
+      width: 100%;
+      max-width: 1160px;
       margin: auto;
-      padding: 25px 28px 70px;
+      padding: 34px 32px 76px;
     }
 
     .faq-heading {
@@ -314,24 +321,25 @@
 
     .faq-heading h2 {
       margin: 0;
-      font-size: 25px;
+      font-size: 30px;
       letter-spacing: -.8px;
     }
 
     .faq-heading p {
-      margin: 8px 0 0;
+      margin: 10px 0 0;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .faq-list {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      width: 100%;
     }
 
     details {
-      padding: 15px 16px;
+      padding: 20px 22px;
       border: 1px solid var(--line);
       border-radius: 10px;
       background: #fff;
@@ -340,7 +348,7 @@
     summary {
       position: relative;
       padding-right: 20px;
-      font-size: 12px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       list-style: none;
@@ -363,8 +371,8 @@
     details p {
       margin: 11px 0 0;
       color: var(--muted);
-      font-size: 11px;
-      line-height: 1.8;
+      font-size: 14px;
+      line-height: 1.85;
     }
 
     .seo-about {
@@ -621,7 +629,7 @@
       <div>
         <span class="eyebrow">A simpler way to edit PSD</span>
 
-        <h1>Your PSDs.<br><span>Ready to edit.</span></h1>
+        <h1>Your PSDs.<br><span>Ready to edit Online</span></h1>
 
         <p class="intro">
           Open and edit PSD files right in your browser.
@@ -744,8 +752,7 @@
     </section>
 
     <footer>
-      <span>© <span id="currentYear">2026</span> EditPSD</span>
-      &nbsp;·&nbsp;
+      © <span id="currentYear">2026</span> EditPSD &nbsp;·&nbsp;
       <a href="mailto:editpsdnet@gmail.com">editpsdnet@gmail.com</a>
     </footer>
   </main>
