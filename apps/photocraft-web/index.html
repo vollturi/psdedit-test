@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#000000">
-  <link rel="icon" type="image/jpeg" href="/fav.jpg?v=3">
+  <link rel="icon" type="image/jpeg" href="/fav.jpg?v=4">
 
   <title>Edit PSD Online - Photoshop Format | EditPSD.net</title>
   <meta name="description" content="Edit PSD online for free in your browser. Open, edit, and save Photoshop PSD files with EditPSD.net — no download or account required.">
@@ -76,8 +76,8 @@
 
     .brand img {
       display: block;
-      width: 299px;
-      max-width: min(42vw, 299px);
+      width: 220px;
+      max-width: min(42vw, 220px);
       height: auto;
       object-fit: contain;
     }
@@ -367,6 +367,26 @@
       line-height: 1.8;
     }
 
+    .seo-about {
+      max-width: 940px;
+      margin: 0 auto;
+      padding: 0 28px 56px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.9;
+    }
+
+    .seo-about h2 {
+      margin: 24px 0 12px;
+      color: var(--ink);
+      font-size: 18px;
+      line-height: 1.45;
+      letter-spacing: -.3px;
+    }
+
+    .seo-about p { margin: 0 0 14px; }
+
     footer {
       padding: 22px 20px;
       border-top: 1px solid var(--line);
@@ -435,20 +455,26 @@
     }
 
     #fontUploadControl {
-      display: flex;
-      position: fixed;
-      z-index: 20;
-      top: 2px;
-      left: 535px;
+      display: inline-flex;
+      position: static;
+      z-index: auto;
       align-items: center;
       gap: 8px;
-      max-width: calc(100vw - 547px);
-      height: 28px;
+      max-width: 100%;
+      height: auto;
+      margin-top: 9px;
       font: 11px/1.4 system-ui, sans-serif;
     }
 
-    /* Font upload is available on the landing page and inside the editor. */
-    #fontUploadControl { display: flex; }
+    body.editor-mode #fontUploadControl {
+      position: fixed;
+      z-index: 20;
+      top: 2px;
+      left: 460px;
+      max-width: calc(100vw - 472px);
+      height: 28px;
+      margin-top: 0;
+    }
 
     #fontUploadControl label {
       display: inline-flex;
@@ -496,7 +522,7 @@
     #fontUploadStatus:empty { display: none; }
 
     @media (max-width: 760px) {
-      #fontUploadControl {
+      body.editor-mode #fontUploadControl {
         left: auto;
         right: 8px;
         top: 0;
@@ -560,6 +586,11 @@
 
       .faq { padding: 28px 20px 45px; }
 
+      .seo-about { padding: 0 20px 38px; font-size: 12px; }
+      .seo-about h2 { font-size: 17px; }
+      .font-copy { width: 100%; }
+      #fontUploadControl { flex-wrap: wrap; }
+
       .faq-heading h2 { font-size: 22px; }
 
       .faq-list { grid-template-columns: 1fr; }
@@ -581,8 +612,8 @@
         <img src="./edit-psd-online-logo1.png" alt="EditPSD">
       </a>
 
-      <a class="market-link" href="#dropzone" id="headerUploadLink">
-        Open a PSD <span aria-hidden="true">↗</span>
+      <a class="market-link" href="mailto:editpsdnet@gmail.com" id="headerUploadLink">
+        Contact Us <span aria-hidden="true">↗</span>
       </a>
     </header>
 
@@ -636,6 +667,11 @@
       <div class="font-copy">
         <strong>More creative freedom</strong>
         <span>Designed for quick edits to your PSD files - online and 100% FREE.</span>
+        <div id="fontUploadControl" aria-label="Upload a custom font">
+          <label for="fontInput">＋ Upload Custom Font</label>
+          <input id="fontInput" type="file" accept=".ttf,.otf,.ttc,.otc" hidden>
+          <span id="fontUploadStatus" role="status"></span>
+        </div>
       </div>
 
       <div class="font-samples" aria-label="Popular font families">
@@ -688,29 +724,32 @@
 
 
   <script>
-    // Keep only one FAQ answer open at a time on every screen size.
-    document.querySelectorAll('.faq-list details').forEach(item => {
-      item.addEventListener('toggle', () => {
-        if (!item.open) return;
-        document.querySelectorAll('.faq-list details[open]').forEach(other => {
-          if (other !== item) other.open = false;
+    // Single-open FAQ accordion, independent of desktop/mobile grid layout.
+    document.querySelectorAll('.faq-list').forEach(list => {
+      list.addEventListener('click', event => {
+        const summary = event.target.closest('summary');
+        if (!summary || !list.contains(summary)) return;
+        const current = summary.parentElement;
+        list.querySelectorAll('details[open]').forEach(item => {
+          if (item !== current) item.open = false;
         });
-      });
+      }, true);
     });
   </script>
+
+    <section class="seo-about" aria-labelledby="seo-about-heading">
+      <h2 id="seo-about-heading">Edit PSD Files Online for Free with EditPSD.net</h2>
+      <p>EditPSD.net is a free online PSD editor that lets you open and work with Photoshop Document (PSD) files directly in your browser. Edit supported designs, review layers, customize text and visual elements where supported, and save or export your work to your computer. No account or paid subscription is required, and EditPSD.net is intended to remain free to use.</p>
+      <p>PSD is the native document format used by Adobe Photoshop to store layered designs such as flyers, posters, social media graphics, menus and marketing materials. With an online PSD editor, you can access compatible design files without installing Photoshop. Upload a PSD or PSB file, make your edits in the browser, and export your work to your desktop. For the best experience with large documents, use an up-to-date desktop browser such as Google Chrome.</p>
+    </section>
 
     <footer>
       <span>© <span id="currentYear">2026</span> EditPSD</span>
       &nbsp;·&nbsp;
-      <a href="mailto:hello@editpsd.net">Contact</a>
+      <a href="mailto:editpsdnet@gmail.com">editpsdnet@gmail.com</a>
     </footer>
   </main>
 
-  <div id="fontUploadControl" aria-label="Upload a font">
-    <label for="fontInput">＋ Upload font</label>
-    <input id="fontInput" type="file" accept=".ttf,.otf,.ttc,.otc" hidden>
-    <span id="fontUploadStatus" role="status"></span>
-  </div>
   <canvas id="photocraft_canvas"></canvas>
   <div id="photocraft_loading" aria-live="polite" role="status">
     <div class="loading-mark" aria-hidden="true"></div>
@@ -726,6 +765,22 @@
       const note = document.getElementById("fileNote");
 
       button.addEventListener("click", () => input.click());
+
+      const fontControl = document.getElementById("fontUploadControl");
+      const fontHome = fontControl ? fontControl.parentElement : null;
+      const syncFontControlLocation = () => {
+        if (!fontControl || !fontHome) return;
+        if (document.body.classList.contains("editor-mode")) {
+          if (fontControl.parentElement !== document.body) document.body.appendChild(fontControl);
+        } else if (fontControl.parentElement !== fontHome) {
+          fontHome.appendChild(fontControl);
+        }
+      };
+      new MutationObserver(syncFontControlLocation).observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+      syncFontControlLocation();
 
       const fontInput = document.getElementById("fontInput");
       const fontStatus = document.getElementById("fontUploadStatus");
