@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#000000">
 
-  <title>Photoshop Online (Little Version) – Free PSD Editor | PSDEdit</title>
-  <meta name="description" content="Edit PSD files online for free with PSDEdit. Open Photoshop documents directly in your browser. No login or Photoshop installation required.">
-  <link rel="canonical" href="https://pixelsdesign.site/editor/">
+  <title>EditPSD — Free Online PSD Editor</title>
+  <meta name="description" content="Edit PSD files online for free with EditPSD. Open and edit Photoshop documents directly in your browser, with no login required.">
+  <link rel="canonical" href="https://editpsd.net/">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,11 +22,16 @@
 
   <style>
     :root {
-      --green: #9ee24e;
-      --ink: #171717;
+      --black: #000000;
+      --charcoal: #383838;
+      --blue: #003fe4;
+      --cyan: #00b8fb;
+      --ink: #000000;
       --muted: #707070;
-      --line: #eaeaea;
-      --soft: #f8f8f8;
+      --line: #e8e8eb;
+      --soft: #f7f8fa;
+      --accent: #003fe4;
+      --accent-soft: #f1f5ff;
     }
 
     * { box-sizing: border-box; }
@@ -62,10 +67,16 @@
       border-bottom: 1px solid #f0f0f0;
     }
 
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
     .brand img {
       display: block;
-      width: 190px;
-      max-width: 42vw;
+      width: 299px;
+      max-width: min(42vw, 299px);
       height: auto;
       object-fit: contain;
     }
@@ -85,8 +96,9 @@
     }
 
     .market-link:hover {
-      border-color: var(--green);
-      background: #fbfff6;
+      border-color: #b8c9ff;
+      background: var(--accent-soft);
+      color: var(--accent);
     }
 
     .hero {
@@ -174,8 +186,9 @@
     }
 
     .dropzone.dragging {
-      background: #f8fff0;
-      border-color: var(--green);
+      background: #f1f5ff;
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(0,63,228,.08);
     }
 
     .upload-icon {
@@ -184,8 +197,8 @@
       display: grid;
       place-items: center;
       border-radius: 15px;
-      background: #f0f0f0;
-      color: #222;
+      background: #f1f5ff;
+      color: var(--accent);
       margin-bottom: 18px;
     }
 
@@ -214,19 +227,26 @@
       gap: 9px;
       min-height: 48px;
       padding: 0 25px;
-      border: 1px solid var(--ink);
+      border: 1px solid var(--black);
       border-radius: 9px;
-      background: var(--ink);
+      background: var(--black);
       color: #fff;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform .2s, background .2s;
+      transition: transform .2s, background .2s, border-color .2s;
     }
 
     .upload-button:hover {
-      background: #333;
+      background: var(--charcoal);
+      border-color: var(--charcoal);
       transform: translateY(-1px);
+    }
+
+    .upload-button:focus-visible,
+    .market-link:focus-visible {
+      outline: 3px solid rgba(0,63,228,.28);
+      outline-offset: 3px;
     }
 
     .file-note {
@@ -385,7 +405,8 @@
       width: 42px;
       height: 42px;
       border: 3px solid #454545;
-      border-top-color: #9ee24e;
+      border-top-color: var(--cyan);
+      border-right-color: var(--blue);
       border-radius: 50%;
       animation: psdedit-spin .8s linear infinite;
     }
@@ -427,10 +448,10 @@
       gap: 5px;
       min-height: 25px;
       padding: 0 10px;
-      border: 1px solid #5f8734;
+      border: 1px solid #3159df;
       border-radius: 6px;
-      background: #354d24;
-      color: #d9ffb4;
+      background: #202b4b;
+      color: #eef3ff;
       font-size: 11px;
       font-weight: 600;
       white-space: nowrap;
@@ -440,13 +461,13 @@
     }
 
     #fontUploadControl label:hover {
-      background: #45652d;
-      border-color: #a4df61;
+      background: #003fe4;
+      border-color: #00b8fb;
       color: #fff;
     }
 
     #fontUploadControl label:focus-visible {
-      outline: 2px solid #a4df61;
+      outline: 2px solid #00b8fb;
       outline-offset: 1px;
     }
 
@@ -547,27 +568,25 @@
 <body>
   <main class="landing" id="landing">
     <header class="topbar">
-      <a class="brand" href="https://pixelsdesign.site/market/" aria-label="PixelsDesign Marketplace">
-        <img
-          src="https://pixelsdesign.site/market/wp-content/uploads/2023/08/pixelsdesign-logo.jpg"
-          alt="PixelsDesign">
+      <a class="brand" href="/" aria-label="EditPSD home">
+        <img src="./editpsd-logo.png" alt="EditPSD">
       </a>
 
-      <a class="market-link" href="https://pixelsdesign.site/market/">
-        Marketplace <span aria-hidden="true">↗</span>
+      <a class="market-link" href="#dropzone" id="headerUploadLink">
+        Open a PSD <span aria-hidden="true">↗</span>
       </a>
     </header>
 
     <section class="hero">
       <div>
-        <span class="eyebrow">Free online PSD editor</span>
+        <span class="eyebrow">A simpler way to edit PSD</span>
 
-        <h1>Photoshop Online.<br><span>The Little Version.</span></h1>
+        <h1>Your PSDs.<br><span>Ready to edit.</span></h1>
 
         <p class="intro">
-          Edit your PSD files directly in your browser.
-          Open your design and get started without installing Photoshop
-          or creating an account.
+          Open and edit PSD files right in your browser.
+          Get started in seconds — no Photoshop installation
+          or account required.
         </p>
 
         <div class="features">
@@ -658,9 +677,9 @@
     </section>
 
     <footer>
-      <span>PSDEdit by PixelsDesign</span>
+      <span>© <span id="currentYear">2026</span> EditPSD</span>
       &nbsp;·&nbsp;
-      <a href="https://pixelsdesign.site/market/">Marketplace</a>
+      <a href="mailto:hello@editpsd.net">Contact</a>
     </footer>
   </main>
 
