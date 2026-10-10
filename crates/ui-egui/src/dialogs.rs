@@ -136,37 +136,11 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     }
                 }
                 DialogKind::About => {
-                    // Tabs About · Contributors · Models (craftrules standards/contributors.md). The
-                    // tab is a dialog field, so automation can switch it with `ui.dialog.set`.
-                    let tab = about_tab(&fields);
-                    let mut chosen = tab;
-                    ui.horizontal(|ui| {
-                        for (key, label) in [("about", tl!("About")), ("contributors", tl!("Contributors")), ("models", tl!("Models"))] {
-                            if crate::widgets::pill_tab(ui, label, tab == key).clicked() {
-                                chosen = key;
-                            }
-                        }
-                    });
-                    if chosen != tab {
-                        fields.insert("tab".into(), json!(chosen));
-                    }
+                    ui.label(egui::RichText::new("EditPSD.net").strong().size(18.0));
+                    ui.label("Free online PSD editor. Open, edit, and export compatible PSD files in your browser.");
+                    ui.label(crate::i18n::fmt(tl!("Version {version}"), &[("version", &photocraft_engine::build_info::long_version())]));
                     ui.add_space(8.0);
-                    match chosen {
-                        "contributors" => crate::credits::contributors_ui(ui),
-                        "models" => crate::credits::models_ui(ui),
-                        _ => {
-                            ui.label(tl!("PhotoCraft — an open-source, native image editor written in Rust."));
-                            ui.label(crate::i18n::fmt(tl!("Version {version}"), &[("version", &photocraft_engine::build_info::long_version())]));
-                            ui.add_space(12.0);
-                            ui.vertical_centered(|ui| {
-                                crate::links::discord_button(app, ui, 220.0);
-                                ui.add_space(8.0);
-                                crate::links::link_row(app, ui);
-                            });
-                            ui.add_space(10.0);
-                            ui.weak("egui · wgpu · photocraft-engine");
-                        }
-                    }
+                    ui.label("EditPSD.net is designed to remain free to use.");
                 }
                 DialogKind::Command if crate::fill_ui::owns(&fields) => crate::fill_ui::body(app, ui, &mut fields),
                 DialogKind::Command if crate::rasterize_prompt::owns(&fields) => crate::rasterize_prompt::body(ui, &fields),
@@ -294,7 +268,7 @@ pub fn title(d: &Dialog) -> String {
     match d.kind {
         DialogKind::NewDocument => "New Document".into(),
         DialogKind::About if d.fields.get("systemInfo").and_then(Value::as_bool) == Some(true) => "System Info".into(),
-        DialogKind::About => "About PhotoCraft".into(),
+        DialogKind::About => "About editPSD.net".into(),
         DialogKind::LayerStyle => "Layer Style".into(),
         DialogKind::Command => d.fields.get("__label").and_then(Value::as_str).unwrap_or("Command").trim_end_matches('…').to_string(),
         DialogKind::Error => "Error".into(),
