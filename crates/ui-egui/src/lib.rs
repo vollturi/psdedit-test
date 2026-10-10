@@ -1011,6 +1011,13 @@ impl eframe::App for PhotocraftApp {
             if let Err(e) = self.open_bytes(&name, &bytes) {
                 self.open_failed(&name, &e);
             }
+            // Keep the web loading overlay visible until the PSD import has actually returned.
+            #[cfg(target_arch = "wasm32")]
+            if let Some(window) = web_sys::window()
+                && let Ok(event) = web_sys::CustomEvent::new("psdedit:import-complete")
+            {
+                let _ = window.dispatch_event(&event);
+            }
         }
         // Finder double-click / Open With / Dock drops (macOS open-documents events).
         self.drain_os_events(ctx);
