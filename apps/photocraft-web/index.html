@@ -853,10 +853,28 @@
       const loadingTitle = document.getElementById("photocraft_loading_title");
       const loadingDetail = document.getElementById("photocraft_loading_detail");
 
+      let pendingPsdFile = null;
+
+      function sendSelectedFile(file) {
+        window.dispatchEvent(new CustomEvent("psdedit:file-selected", {
+          detail: { name: file.name, file }
+        }));
+      }
+
+      function deliverPendingPsdFile() {
+        if (!pendingPsdFile || !window.__psdeditFileListenerReady) return;
+        const file = pendingPsdFile;
+        pendingPsdFile = null;
+        sendSelectedFile(file);
+      }
+
+      // The editor's WASM listener can initialize after the landing page script.
+      // Queue the selected file until Rust confirms that it can receive the event.
+      window.addEventListener("psdedit:file-listener-ready", deliverPendingPsdFile);
+
       window.addEventListener("psdedit:file-read", () => {
         loadingTitle.textContent = "Opening your document…";
         loadingDetail.textContent = "Your file has been read. Preparing the editor.";
-        // Give the editor a frame to display its own document/open progress UI.
         window.requestAnimationFrame(() => {
           window.setTimeout(() => loading.classList.add("is-hidden"), 250);
         });
@@ -882,15 +900,12 @@
 
         note.textContent = file.name;
         loadingTitle.textContent = "Preparing your editor…";
-        loadingDetail.textContent = "Reading " + file.name;
+        loadingDetail.textContent = "Starting editor for " + file.name;
         loading.classList.remove("is-hidden");
         document.body.classList.add("editor-mode");
 
-        // The Rust/WebAssembly shell reads the file asynchronously, then signals
-        // the page so the editor can take over without an unexplained blank screen.
-        window.dispatchEvent(new CustomEvent("psdedit:file-selected", {
-          detail: { name: file.name, file }
-        }));
+        pendingPsdFile = file;
+        deliverPendingPsdFile();
       }
 
       input.addEventListener("change", () => {
