@@ -161,6 +161,16 @@ fn listen_selected_file(inbox: Inbox, ctx: egui::Context) {
         .is_ok()
     {
         callback.forget();
+        // Persist readiness and dispatch an event so the landing page can safely
+        // queue a file selected before WebAssembly finished initializing.
+        let _ = js_sys::Reflect::set(
+            window.as_ref(),
+            &wasm_bindgen::JsValue::from_str("__psdeditFileListenerReady"),
+            &wasm_bindgen::JsValue::TRUE,
+        );
+        if let Ok(event) = web_sys::CustomEvent::new("psdedit:file-listener-ready") {
+            let _ = window.dispatch_event(&event);
+        }
     }
 
     // Font uploads use a separate event so TTF/OTF files never enter the document inbox.
