@@ -998,3 +998,84 @@
       }
 
       function deliverPendingPsdFile() {
+        if (!pendingPsdFile || !window.__psdeditFileListenerReady) return;
+        const file = pendingPsdFile;
+        pendingPsdFile = null;
+        sendSelectedFile(file);
+      }
+
+      // The editor's WASM listener can initialize after the landing page script.
+      // Queue the selected file until Rust confirms that it can receive the event.
+      window.addEventListener("psdedit:file-listener-ready", deliverPendingPsdFile);
+
+      window.addEventListener("psdedit:file-read", () => {
+        loadingTitle.textContent = "Importing your PSD…";
+        loadingDetail.textContent = "Your file is being prepared for editing. Large files may take a little longer.";
+        armLoadingFailsafe();
+      });
+
+      window.addEventListener("psdedit:import-complete", () => {
+        clearLoadingFailsafe();
+        loadingTitle.textContent = "Your document is ready";
+        loadingDetail.textContent = "Opening the editor…";
+        window.setTimeout(() => loading.classList.add("is-hidden"), 300);
+      });
+
+      window.addEventListener("psdedit:file-read-error", () => {
+        clearLoadingFailsafe();
+        loadingTitle.textContent = "Could not read this file";
+        loadingDetail.textContent = "Please try selecting the PSD again.";
+        window.setTimeout(() => {
+          loading.classList.add("is-hidden");
+          document.body.classList.remove("editor-mode");
+        }, 1800);
+      });
+
+      function openEditor(file) {
+        if (!file) return;
+
+        const extension = file.name.split(".").pop().toLowerCase();
+        if (!["psd", "psb"].includes(extension)) {
+          note.textContent = "Please choose a PSD or PSB file.";
+          return;
+        }
+
+        note.textContent = file.name;
+        loadingTitle.textContent = "Preparing your editor…";
+        loadingDetail.textContent = "Starting editor for " + file.name;
+        loading.classList.remove("is-hidden");
+        document.body.classList.add("editor-mode");
+        armLoadingFailsafe();
+
+        pendingPsdFile = file;
+        deliverPendingPsdFile();
+      }
+
+      input.addEventListener("change", () => {
+        if (input.files && input.files.length) {
+          openEditor(input.files[0]);
+        }
+      });
+
+      ["dragenter", "dragover"].forEach(eventName => {
+        dropzone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropzone.classList.add("dragging");
+        });
+      });
+
+      ["dragleave", "drop"].forEach(eventName => {
+        dropzone.addEventListener(eventName, event => {
+          event.preventDefault();
+          dropzone.classList.remove("dragging");
+        });
+      });
+
+      dropzone.addEventListener("drop", event => {
+        const file = event.dataTransfer && event.dataTransfer.files[0];
+        openEditor(file);
+      });
+    })();
+  </script>
+</body>
+</html>
