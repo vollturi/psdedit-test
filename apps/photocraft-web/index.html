@@ -288,24 +288,59 @@
     .font-samples {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       justify-content: flex-end;
       gap: 8px;
     }
 
-    .font-samples span {
+    .font-samples > span,
+    .font-samples #fontUploadControl label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      margin: 0;
       padding: 7px 10px;
       border: 1px solid var(--line);
       border-radius: 7px;
       color: #444;
       font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
       background: #fff;
-    }
-
-    .font-samples .other-fonts {
-      color: var(--accent);
-      font-weight: 600;
+      box-shadow: none;
       white-space: nowrap;
     }
+
+    .font-samples #fontUploadControl {
+      display: inline-flex;
+      align-items: center;
+      margin: 0;
+      gap: 0;
+      max-width: 100%;
+      height: auto;
+      font: inherit;
+    }
+
+    .font-samples #fontUploadControl label {
+      border-color: var(--line);
+      background: #fff;
+      color: #444;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+
+    .font-samples #fontUploadControl label:hover {
+      border-color: #008afb;
+      background: #f5f9ff;
+      color: #222;
+    }
+
+    .font-samples #fontUploadControl #fontUploadStatus {
+      margin-left: 8px;
+    }
+
+
 
     .faq {
       width: 100%;
@@ -470,7 +505,7 @@
       gap: 8px;
       max-width: 100%;
       height: auto;
-      margin-top: 9px;
+      margin-top: 0;
       font: 11px/1.4 system-ui, sans-serif;
     }
 
@@ -491,22 +526,22 @@
       gap: 5px;
       min-height: 25px;
       padding: 0 10px;
-      border: 1px solid #3159df;
-      border-radius: 6px;
-      background: #202b4b;
-      color: #eef3ff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #444;
       font-size: 11px;
       font-weight: 600;
       white-space: nowrap;
       cursor: pointer;
-      box-shadow: 0 1px 3px #0004;
+      box-shadow: none;
       transition: background .15s, border-color .15s, color .15s;
     }
 
     #fontUploadControl label:hover {
-      background: #003fe4;
-      border-color: #00b8fb;
-      color: #fff;
+      background: #f5f9ff;
+      border-color: #008afb;
+      color: #222;
     }
 
     #fontUploadControl label:focus-visible {
@@ -675,11 +710,6 @@
       <div class="font-copy">
         <strong>More creative freedom</strong>
         <span>Designed for quick edits to your PSD files - online and 100% FREE.</span>
-        <div id="fontUploadControl" aria-label="Upload a custom font">
-          <label for="fontInput">＋ Upload Custom Font</label>
-          <input id="fontInput" type="file" accept=".ttf,.otf,.ttc,.otc" hidden>
-          <span id="fontUploadStatus" role="status"></span>
-        </div>
       </div>
 
       <div class="font-samples" aria-label="Popular font families">
@@ -687,7 +717,11 @@
         <span style="font-family:Roboto,sans-serif">Roboto</span>
         <span style="font-family:Georgia,serif">Georgia</span>
         <span style="font-family:monospace">Mono</span>
-        <span class="other-fonts">+ Other Google Fonts</span>
+        <div id="fontUploadControl" aria-label="Upload a custom font">
+          <label for="fontInput">＋ Upload Custom Font</label>
+          <input id="fontInput" type="file" accept=".ttf,.otf,.ttc,.otc" hidden>
+          <span id="fontUploadStatus" role="status"></span>
+        </div>
       </div>
     </section>
 
