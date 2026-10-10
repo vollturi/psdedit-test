@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#000000">
-  <link rel="icon" type="image/jpeg" href="/fav.jpg?v=2">
+  <link rel="icon" type="image/jpeg" href="/fav.jpg?v=3">
 
   <title>Edit PSD Online - Photoshop Format | EditPSD.net</title>
   <meta name="description" content="Edit PSD online for free in your browser. Open, edit, and save Photoshop PSD files with EditPSD.net — no download or account required.">
@@ -12,7 +12,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 
   <link data-trunk rel="rust"
         data-bin="photocraft-web"
@@ -295,6 +295,12 @@
       background: #fff;
     }
 
+    .font-samples .other-fonts {
+      color: var(--accent);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
     .faq {
       max-width: 940px;
       margin: auto;
@@ -426,9 +432,10 @@
 
     @media (prefers-reduced-motion: reduce) {
       #photocraft_loading .loading-mark { animation: none; }
+    }
 
     #fontUploadControl {
-      display: none;
+      display: flex;
       position: fixed;
       z-index: 20;
       top: 2px;
@@ -440,7 +447,8 @@
       font: 11px/1.4 system-ui, sans-serif;
     }
 
-    body.editor-mode #fontUploadControl { display: flex; }
+    /* Font upload is available on the landing page and inside the editor. */
+    #fontUploadControl { display: flex; }
 
     #fontUploadControl label {
       display: inline-flex;
@@ -627,14 +635,15 @@
     <section class="font-strip" aria-label="Font information">
       <div class="font-copy">
         <strong>More creative freedom</strong>
-        <span>Designed for quick edits to your PSD files.</span>
+        <span>Designed for quick edits to your PSD files - online and 100% FREE.</span>
       </div>
 
       <div class="font-samples" aria-label="Popular font families">
         <span style="font-family:Poppins,sans-serif">Poppins</span>
-        <span style="font-family:Arial,sans-serif">Arial</span>
+        <span style="font-family:Roboto,sans-serif">Roboto</span>
         <span style="font-family:Georgia,serif">Georgia</span>
         <span style="font-family:monospace">Mono</span>
+        <span class="other-fonts">+ Other Google Fonts</span>
       </div>
     </section>
 
@@ -644,7 +653,7 @@
         <p>Everything you need to know before you start.</p>
       </div>
 
-      <div class="faq-list">
+      <div class="faq-list" data-single-faq>
         <details>
           <summary>What is PSDEdit?</summary>
           <p>PSDEdit is a browser-based tool designed to help you open and edit PSD documents online.</p>
@@ -676,6 +685,19 @@
         </details>
       </div>
     </section>
+
+
+  <script>
+    // Keep only one FAQ answer open at a time on every screen size.
+    document.querySelectorAll('.faq-list details').forEach(item => {
+      item.addEventListener('toggle', () => {
+        if (!item.open) return;
+        document.querySelectorAll('.faq-list details[open]').forEach(other => {
+          if (other !== item) other.open = false;
+        });
+      });
+    });
+  </script>
 
     <footer>
       <span>© <span id="currentYear">2026</span> EditPSD</span>
