@@ -867,11 +867,36 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
         .and_then(|st| text_layer(&st.doc, id))
         .map(|t| t.font_family.clone())
         .unwrap_or_else(|| app.ui.tool_options.type_font.clone());
-    let mut selected_style = app.session.active()
-        .and_then(|st| text_layer(&st.doc, id))
-        .and_then(|t| t.char_runs().into_iter().next().map(|r| r.style.font_style.clone()))
+    let layer_style = app.session.active()
+        .and_then(|st| text_layer(&st.doc, id).map(|t| {
+            let style = t.char_runs().into_iter().next().map(|r| r.style.font_style.clone());
+            (style, t.size_pt * shown_scale(app), t.color)
+        }));
+    let mut selected_style = layer_style.as_ref()
+        .and_then(|(style, _, _)| style.clone())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| app.ui.tool_options.type_style.clone());
+    let mut selected_size = layer_style.as_ref()
+        .map(|(_, size, _)| *size)
+        .unwrap_or(app.ui.tool_options.type_size);
+    let color = layer_style.as_ref()
+        .map(|(_, _, color)| {
+            let rgb = color.to_rgb();
+            Color32::from_rgb(
+                (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (rgb[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (rgb[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+            )
+        })
+        .unwrap_or_else(|| {
+            let c = app.session.tools.foreground;
+            Color32::from_rgb(
+                (c[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (c[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (c[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+            )
+        });
+    let mut selected_color = color;
 
     let window_response = egui::Window::new("Edit Text")
         .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
@@ -907,6 +932,17 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                             }
                         }
                     });
+            });
+            ui.horizontal(|ui| {
+                ui.label("Size");
+                if ui.add(egui::DragValue::new(&mut selected_size).range(1.0..=1296.0).suffix(" pt")).changed() {
+                    app.ui.tool_options.type_size = selected_size;
+                    apply(app, ctx, json!({"size": selected_size / shown_scale(app)}));
+                }
+                ui.label("Color");
+                if egui::color_picker::color_edit_button_srgba(ui, &mut selected_color, egui::color_picker::Alpha::Opaque).changed() {
+                    apply(app, ctx, json!({"color": format!("#{:02x}{:02x}{:02x}", selected_color.r(), selected_color.g(), selected_color.b())}));
+                }
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
