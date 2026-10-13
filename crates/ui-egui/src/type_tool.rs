@@ -407,6 +407,7 @@ fn line_edge(app: &mut PhotocraftApp, id: LayerId, caret: usize, end: bool) -> u
 /// Keyboard input while editing. Returns true when a type edit session is active (single-key
 /// tool shortcuts must then be skipped). Handled events are removed from the frame's input.
 pub fn handle_keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
+    if ctx.text_edit_focused() { return false; }
     let Some(ed) = app.ui.text_edit.clone() else { return false };
     let id = LayerId(ed.layer);
     let Some(text) = current_text(app, id) else {
@@ -847,6 +848,96 @@ pub fn foreground_changed(app: &mut PhotocraftApp) {
     let Some(ed) = app.ui.text_edit.as_ref() else { return };
     let p = json!({"layer": layer, "range": range, "color": hex(app.session.tools.foreground), "coalesce": ed.session});
     let _ = app.run("type.setStyle", p);
+}
+
+/// Compact text editor shown for an existing text layer while the Type tool is active.
+/// The inline Type tool remains responsible for creating new text layers.
+pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
+    let Some(ed) = app.ui.text_edit.clone().filter(|ed| !ed.created) else {
+        return;
+    };
+    let id = LayerId(ed.layer);
+    let Some(current) = current_text(app, id) else { return };
+    let key = egui::Id::new(("existing-text-overlay", ed.layer));
+    let mut draft = ctx.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| current.clone());
+    let mut open = true;
+    let mut apply_text = false;
+    let mut selected_font = app.session.active()
+        .and_then(|st| text_layer(&st.doc, id))
+        .map(|t| t.font_family.clone())
+        .unwrap_or_else(|| app.ui.tool_options.type_font.clone());
+    let mut selected_style = app.session.active()
+        .and_then(|st| text_layer(&st.doc, id))
+        .and_then(|t| t.char_runs().into_iter().next().map(|r| r.style.font_style.clone()))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| app.ui.tool_options.type_style.clone());
+
+    egui::Window::new("Edit Text")
+        .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
+        .collapsible(false)
+        .resizable(false)
+        .default_width(340.0)
+        .frame(crate::type_panels_ui::float_frame(&crate::theme::Tokens::get(ctx)))
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.label(egui::RichText::new("Text").strong());
+            let response = ui.add(
+                egui::TextEdit::multiline(&mut draft)
+                    .desired_width(320.0)
+                    .desired_rows(4)
+                    .hint_text("Enter text…"),
+            );
+            if response.changed() {
+                ctx.data_mut(|d| d.insert_temp(key, draft.clone()));
+            }
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new("Font").strong());
+            if font_picker(ui, &mut selected_font, 280.0) {
+                apply(app, ctx, json!({"font": selected_font}));
+            }
+            ui.horizontal(|ui| {
+                ui.label("Style");
+                egui::ComboBox::from_id_salt(("overlay-font-style", ed.layer))
+                    .selected_text(&selected_style)
+                    .show_ui(ui, |ui| {
+                        for style in styles(&selected_font) {
+                            if ui.selectable_label(style == selected_style, &style).clicked() {
+                                selected_style = style.clone();
+                                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
+                            }
+                        }
+                    });
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Apply").clicked() {
+                    apply_text = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    open = false;
+                }
+            });
+        });
+
+    if apply_text {
+        let count = current.chars().count();
+        if draft != current && app.run(
+            "type.edit",
+            json!({"layer": ed.layer, "replace": {"start": 0, "end": count, "text": draft}, "coalesce": ed.session}),
+        ).is_ok() {
+            let caret = draft.chars().count();
+            if let Some(active) = app.ui.text_edit.as_mut() {
+                active.caret = caret;
+                active.anchor = caret;
+            }
+        }
+        ctx.data_mut(|d| d.remove::<String>(key));
+    } else if !open {
+        ctx.data_mut(|d| d.remove::<String>(key));
+        commit(app);
+    } else {
+        ctx.data_mut(|d| d.insert_temp(key, draft));
+    }
 }
 
 /// Photoshop's Type options bar.
