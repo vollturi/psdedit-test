@@ -872,12 +872,11 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| app.ui.tool_options.type_style.clone());
 
-    egui::Window::new("Edit Text")
+    let window_response = egui::Window::new("Edit Text")
         .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
         .collapsible(false)
         .resizable(false)
         .default_width(340.0)
-        .frame(crate::type_panels_ui::float_frame(&crate::theme::Tokens::get(ctx)))
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(egui::RichText::new("Text").strong());
@@ -918,6 +917,15 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                 }
             });
         });
+    let clicked_outside = ctx.input(|i| {
+        i.pointer.any_click()
+            && i.pointer.interact_pos().is_some_and(|pos| {
+                !window_response.as_ref().is_some_and(|r| r.response.rect.contains(pos))
+            })
+    });
+    if clicked_outside {
+        open = false;
+    }
 
     if apply_text {
         let count = current.chars().count();
