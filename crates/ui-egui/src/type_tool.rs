@@ -862,6 +862,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let mut draft = ctx.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| current.clone());
     let mut open = true;
     let mut apply_text = false;
+    let mut cancel_edit = false;
     let mut selected_font = app.session.active()
         .and_then(|st| text_layer(&st.doc, id))
         .map(|t| t.font_family.clone())
@@ -913,7 +914,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     apply_text = true;
                 }
                 if ui.button("Cancel").clicked() {
-                    open = false;
+                    cancel_edit = true;
                 }
             });
         });
@@ -923,7 +924,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                 !window_response.as_ref().is_some_and(|r| r.response.rect.contains(pos))
             })
     });
-    if clicked_outside {
+    if clicked_outside || cancel_edit {
         open = false;
     }
 
