@@ -371,13 +371,19 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                     // This group is laid out right-to-left: keep the visual order PSD, Export As,
                     // JPG / PNG, then the existing search/theme controls.
                     if room >= WORKSPACE_MIN + 350.0 {
-                        if ui.button("Export JPG / PNG").clicked() {
+                        let export_jpg_png = egui::Button::new(RichText::new("Export JPG / PNG").color(Color32::WHITE))
+                            .fill(Color32::from_rgb(35, 145, 92))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(57, 181, 120)));
+                        if ui.add(export_jpg_png).clicked() {
                             if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.export.exportAs", serde_json::json!({})) {
                                 app.ui.status = error;
                                 app.ui.status_error = true;
                             }
                         }
-                        if ui.button("Export as PDF").clicked() {
+                        let export_pdf = egui::Button::new(RichText::new("Export as PDF").color(Color32::WHITE))
+                            .fill(Color32::from_rgb(112, 75, 190))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(151, 111, 230)));
+                        if ui.add(export_pdf).clicked() {
                             if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.export.exportPdf", serde_json::json!({})) {
                                 if error != "cancelled" {
                                     app.ui.status = error;
@@ -385,7 +391,10 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                 }
                             }
                         }
-                        if ui.button("Export as PSD").clicked() {
+                        let export_psd = egui::Button::new(RichText::new("Export as PSD").color(Color32::WHITE))
+                            .fill(Color32::from_rgb(38, 104, 190))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(76, 148, 235)));
+                        if ui.add(export_psd).clicked() {
                             if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.saveAs", serde_json::json!({})) {
                                 if error != "cancelled" {
                                     app.ui.status = error;
