@@ -980,13 +980,9 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             });
         });
 
-    let clicked_outside = ctx.input(|i| {
-        i.pointer.any_click()
-            && i.pointer.interact_pos().is_some_and(|pos| {
-                !window_response.as_ref().is_some_and(|r| r.response.rect.contains(pos))
-            })
-    });
-    if clicked_outside || cancel_edit {
+    // Keep the dialog open while interacting with popups (for example, the color picker).
+    // Only the explicit Cancel button or the title-bar X should dismiss it.
+    if cancel_edit {
         open = false;
     }
 
