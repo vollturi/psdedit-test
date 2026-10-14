@@ -865,8 +865,11 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
         crate::state::Tool::Type | crate::state::Tool::VerticalType | crate::state::Tool::Move
     );
     let selection_key = egui::Id::new("existing-text-overlay-last-selection");
-    let selection_state = active.map(|(id, is_text)| (id, is_text && eligible_tool));
-    let previous = ctx.data(|d| d.get_temp::<Option<(u64, bool)>>(selection_key).flatten());
+    // Distinguish Move from Type mode: changing to Move while the same text layer
+    // remains selected should open the editor as well.
+    let move_mode = app.ui.tool == crate::state::Tool::Move;
+    let selection_state = active.map(|(id, is_text)| (id, is_text && eligible_tool, move_mode));
+    let previous = ctx.data(|d| d.get_temp::<Option<(u64, bool, bool)>>(selection_key).flatten());
     if previous != selection_state {
         ctx.data_mut(|d| d.insert_temp(selection_key, selection_state));
         if app.ui.text_edit.as_ref().is_none_or(|ed| ed.created)
