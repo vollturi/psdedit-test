@@ -950,6 +950,9 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                 if !available_styles.contains(&selected_style) {
                     selected_style = available_styles.first().cloned().unwrap_or_else(|| "Regular".into());
                 }
+                // Preview the chosen font immediately, matching the main Type options bar.
+                // Apply remains available to commit the text content and final formatting.
+                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
             }
             if !selected_font.trim().is_empty()
                 && !families().iter().any(|available| available.eq_ignore_ascii_case(&selected_font))
@@ -964,6 +967,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                         for style in styles(&selected_font) {
                             if ui.selectable_label(style == selected_style, &style).clicked() {
                                 selected_style = style;
+                                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
                             }
                         }
                     });
