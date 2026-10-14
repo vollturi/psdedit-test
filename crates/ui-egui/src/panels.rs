@@ -366,6 +366,26 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                         app.ui.workspace = ws;
                         crate::menus::apply_workspace(app);
                     }
+
+                    // Friendly export shortcuts next to the workspace selector. Keep them out
+                    // of narrow windows so the title bar and Essentials menu remain usable.
+                    if room >= WORKSPACE_MIN + 220.0 {
+                        if ui.button("Export JPG / PNG").clicked() {
+                            if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.export.exportAs", serde_json::json!({})) {
+                                app.ui.status = error;
+                                app.ui.status_error = true;
+                            }
+                        }
+                        if ui.button("Export as PSD").clicked() {
+                            if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.saveAs", serde_json::json!({})) {
+                                if error != "cancelled" {
+                                    app.ui.status = error;
+                                    app.ui.status_error = true;
+                                }
+                            }
+                        }
+                    }
+
                     if icons_shown >= 1
                         && icons::button(ui, "search", 28.0, app.ui.palette_open, &crate::shortcuts::tip_label(app, "Search commands", "edit.search")).clicked()
                     {
