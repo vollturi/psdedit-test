@@ -853,8 +853,8 @@ pub fn foreground_changed(app: &mut PhotocraftApp) {
 /// Compact text editor shown for an existing text layer while the Type tool is active.
 /// The inline Type tool remains responsible for creating new text layers.
 pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
-    // Open on a newly selected text layer in Type or Move mode. Remember the last
-    // selection/tool pair so closing the X doesn't immediately reopen the window.
+    // Open when a different editable text layer is selected in Type or Move mode.
+    // A dismissed window stays closed until the selection/tool changes.
     let active = app.session.active().and_then(|st| {
         let id = st.active_layer?;
         let is_text = matches!(st.doc.layer(id)?.content, LayerContent::Text(_));
@@ -884,6 +884,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             }
         }
     }
+
     let Some(ed) = app.ui.text_edit.clone().filter(|ed| !ed.created) else {
         return;
     };
@@ -894,24 +895,21 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply_text = false;
     let mut cancel_edit = false;
-    let mut selected_font = app.session.active()
-        .and_then(|st| text_layer(&st.doc, id))
-        .map(|t| t.font_family.clone())
+    let layer_style = app.session.active().and_then(|st| text_layer(&st.doc, id).map(|t| {
+        let style = t.char_runs().into_iter().next().map(|r| r.style.font_style.clone());
+        (t.font_family.clone(), style, t.size_pt * shown_scale(app), t.color)
+    }));
+    let mut selected_font = layer_style.as_ref().map(|(font, _, _, _)| font.clone())
         .unwrap_or_else(|| app.ui.tool_options.type_font.clone());
-    let layer_style = app.session.active()
-        .and_then(|st| text_layer(&st.doc, id).map(|t| {
-            let style = t.char_runs().into_iter().next().map(|r| r.style.font_style.clone());
-            (style, t.size_pt * shown_scale(app), t.color)
-        }));
     let mut selected_style = layer_style.as_ref()
-        .and_then(|(style, _, _)| style.clone())
+        .and_then(|(_, style, _, _)| style.clone())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| app.ui.tool_options.type_style.clone());
     let mut selected_size = layer_style.as_ref()
-        .map(|(_, size, _)| *size)
+        .map(|(_, _, size, _)| *size)
         .unwrap_or(app.ui.tool_options.type_size);
-    let color = layer_style.as_ref()
-        .map(|(_, _, color)| {
+    let mut selected_color = layer_style.as_ref()
+        .map(|(_, _, _, color)| {
             let rgb = color.to_rgb();
             Color32::from_rgb(
                 (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
@@ -927,7 +925,6 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                 (c[2].clamp(0.0, 1.0) * 255.0).round() as u8,
             )
         });
-    let mut selected_color = color;
 
     let window_response = egui::Window::new("Edit Text")
         .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
@@ -948,9 +945,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             }
             ui.add_space(6.0);
             ui.label(egui::RichText::new("Font").strong());
-            if font_picker(ui, &mut selected_font, 280.0) {
-                apply(app, ctx, json!({"font": selected_font}));
-            }
+            let _ = font_picker(ui, &mut selected_font, 280.0);
             if !selected_font.trim().is_empty()
                 && !families().iter().any(|available| available.eq_ignore_ascii_case(&selected_font))
             {
@@ -963,22 +958,16 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     .show_ui(ui, |ui| {
                         for style in styles(&selected_font) {
                             if ui.selectable_label(style == selected_style, &style).clicked() {
-                                selected_style = style.clone();
-                                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
+                                selected_style = style;
                             }
                         }
                     });
             });
             ui.horizontal(|ui| {
                 ui.label("Size");
-                if ui.add(egui::DragValue::new(&mut selected_size).range(1.0..=1296.0).suffix(" pt")).changed() {
-                    app.ui.tool_options.type_size = selected_size;
-                    apply(app, ctx, json!({"size": selected_size / shown_scale(app)}));
-                }
+                let _ = ui.add(egui::DragValue::new(&mut selected_size).range(1.0..=1296.0).suffix(" pt"));
                 ui.label("Color");
-                if egui::color_picker::color_edit_button_srgba(ui, &mut selected_color, egui::color_picker::Alpha::Opaque).changed() {
-                    apply(app, ctx, json!({"color": format!("#{:02x}{:02x}{:02x}", selected_color.r(), selected_color.g(), selected_color.b())}));
-                }
+                let _ = egui::color_picker::color_edit_button_srgba(ui, &mut selected_color, egui::color_picker::Alpha::Opaque);
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
@@ -990,6 +979,7 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
                 }
             });
         });
+
     let clicked_outside = ctx.input(|i| {
         i.pointer.any_click()
             && i.pointer.interact_pos().is_some_and(|pos| {
@@ -1001,6 +991,14 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
     }
 
     if apply_text {
+        // Apply font/style/size/color only after Apply is pressed. Cancel and X discard
+        // the pending text and formatting changes instead of leaving partial edits behind.
+        apply(app, ctx, json!({
+            "font": selected_font,
+            "fontStyle": selected_style,
+            "size": selected_size / shown_scale(app),
+            "color": format!("#{:02x}{:02x}{:02x}", selected_color.r(), selected_color.g(), selected_color.b())
+        }));
         let count = current.chars().count();
         if draft != current {
             if let Err(error) = app.run(
@@ -1013,16 +1011,13 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
         }
         ctx.data_mut(|d| d.remove::<String>(key));
         commit(app);
-        app.ui.text_edit = None;
     } else if !open {
         ctx.data_mut(|d| d.remove::<String>(key));
         commit(app);
-        app.ui.text_edit = None;
     } else {
         ctx.data_mut(|d| d.insert_temp(key, draft));
     }
 }
-
 /// Photoshop's Type options bar.
 pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
