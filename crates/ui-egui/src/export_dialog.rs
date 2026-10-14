@@ -269,32 +269,32 @@ fn jpeg_to_pdf(jpeg: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> 
     }
     let w = width.max(1);
     let h = height.max(1);
-    let content = format!("q\\n{w} 0 0 {h} 0 0 cm\\n/Im0 Do\\nQ\\n");
+    let content = format!("q\n{w} 0 0 {h} 0 0 cm\n/Im0 Do\nQ\n");
     let mut objects: Vec<Vec<u8>> = Vec::new();
     objects.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
     objects.push(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec());
     objects.push(format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>").into_bytes());
-    let mut image = format!("<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\\nstream\\n", jpeg.len()).into_bytes();
+    let mut image = format!("<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\nstream\n", jpeg.len()).into_bytes();
     image.extend_from_slice(jpeg);
-    image.extend_from_slice(b"\\nendstream");
+    image.extend_from_slice(b"\nendstream");
     objects.push(image);
-    objects.push(format!("<< /Length {} >>\\nstream\\n{}endstream", content.len(), content).into_bytes());
+    objects.push(format!("<< /Length {} >>\nstream\n{}endstream", content.len(), content).into_bytes());
 
-    let mut pdf = b"%PDF-1.4\\n%\\xE2\\xE3\\xCF\\xD3\\n".to_vec();
+    let mut pdf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = vec![0usize];
     for (idx, object) in objects.iter().enumerate() {
         offsets.push(pdf.len());
-        pdf.extend_from_slice(format!("{} 0 obj\\n", idx + 1).as_bytes());
+        pdf.extend_from_slice(format!("{} 0 obj\n", idx + 1).as_bytes());
         pdf.extend_from_slice(object);
-        pdf.extend_from_slice(b"\\nendobj\\n");
+        pdf.extend_from_slice(b"\nendobj\n");
     }
     let xref = pdf.len();
-    pdf.extend_from_slice(format!("xref\\n0 {}\\n", objects.len() + 1).as_bytes());
-    pdf.extend_from_slice(b"0000000000 65535 f \\n");
+    pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(b"0000000000 65535 f \n");
     for offset in offsets.iter().skip(1) {
-        pdf.extend_from_slice(format!("{offset:010} 00000 n \\n").as_bytes());
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
     }
-    pdf.extend_from_slice(format!("trailer\\n<< /Size {} /Root 1 0 R >>\\nstartxref\\n{xref}\\n%%EOF\\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
     Ok(pdf)
 }
 
@@ -310,7 +310,7 @@ mod pdf_tests {
         let pdf = jpeg_to_pdf(&jpeg, 120, 80).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(pdf.windows(14).any(|w| w == b"/Subtype /Image"));
-        assert!(pdf.ends_with(b"%%EOF\\n"));
+        assert!(pdf.ends_with(b"%%EOF\n"));
     }
 }
 
