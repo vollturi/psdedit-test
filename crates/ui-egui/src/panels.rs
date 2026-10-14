@@ -377,8 +377,8 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                 app.ui.status_error = true;
                             }
                         }
-                        if ui.button("Export As…").clicked() {
-                            if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.export.exportAs", serde_json::json!({})) {
+                        if ui.button("Export as PDF").clicked() {
+                            if let Err(error) = crate::menus::invoke(app, ui.ctx(), "file.export.exportAs", serde_json::json!({"format": "pdf"})) {
                                 app.ui.status = error;
                                 app.ui.status_error = true;
                             }
