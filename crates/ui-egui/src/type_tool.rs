@@ -895,36 +895,36 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply_text = false;
     let mut cancel_edit = false;
-    let layer_style = app.session.active().and_then(|st| text_layer(&st.doc, id).map(|t| {
+    let format_key = egui::Id::new(("existing-text-overlay-format", ed.layer));
+    let format_defaults = app.session.active().and_then(|st| text_layer(&st.doc, id).map(|t| {
         let style = t.char_runs().into_iter().next().map(|r| r.style.font_style.clone());
-        (t.font_family.clone(), style, t.size_pt * shown_scale(app), t.color)
-    }));
-    let mut selected_font = layer_style.as_ref().map(|(font, _, _, _)| font.clone())
-        .unwrap_or_else(|| app.ui.tool_options.type_font.clone());
-    let mut selected_style = layer_style.as_ref()
-        .and_then(|(_, style, _, _)| style.clone())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| app.ui.tool_options.type_style.clone());
-    let mut selected_size = layer_style.as_ref()
-        .map(|(_, _, size, _)| *size)
-        .unwrap_or(app.ui.tool_options.type_size);
-    let mut selected_color = layer_style.as_ref()
-        .map(|(_, _, _, color)| {
-            let rgb = color.to_rgb();
+        let rgb = t.color.to_rgb();
+        (
+            t.font_family.clone(),
+            style.filter(|s| !s.is_empty()).unwrap_or_else(|| app.ui.tool_options.type_style.clone()),
+            t.size_pt * shown_scale(app),
             Color32::from_rgb(
                 (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
                 (rgb[1].clamp(0.0, 1.0) * 255.0).round() as u8,
                 (rgb[2].clamp(0.0, 1.0) * 255.0).round() as u8,
-            )
-        })
-        .unwrap_or_else(|| {
-            let c = app.session.tools.foreground;
+            ),
+        )
+    })).unwrap_or_else(|| {
+        let c = app.session.tools.foreground;
+        (
+            app.ui.tool_options.type_font.clone(),
+            app.ui.tool_options.type_style.clone(),
+            app.ui.tool_options.type_size,
             Color32::from_rgb(
                 (c[0].clamp(0.0, 1.0) * 255.0).round() as u8,
                 (c[1].clamp(0.0, 1.0) * 255.0).round() as u8,
                 (c[2].clamp(0.0, 1.0) * 255.0).round() as u8,
-            )
-        });
+            ),
+        )
+    });
+    let (mut selected_font, mut selected_style, mut selected_size, mut selected_color) =
+        ctx.data(|d| d.get_temp::<(String, String, f32, Color32)>(format_key))
+            .unwrap_or(format_defaults);
 
     let window_response = egui::Window::new("Edit Text")
         .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
@@ -945,7 +945,12 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             }
             ui.add_space(6.0);
             ui.label(egui::RichText::new("Font").strong());
-            let _ = font_picker(ui, &mut selected_font, 280.0);
+            if font_picker(ui, &mut selected_font, 280.0) {
+                let available_styles = styles(&selected_font);
+                if !available_styles.contains(&selected_style) {
+                    selected_style = available_styles.first().cloned().unwrap_or_else(|| "Regular".into());
+                }
+            }
             if !selected_font.trim().is_empty()
                 && !families().iter().any(|available| available.eq_ignore_ascii_case(&selected_font))
             {
@@ -980,6 +985,8 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             });
         });
 
+    ctx.data_mut(|d| d.insert_temp(format_key, (selected_font.clone(), selected_style.clone(), selected_size, selected_color)));
+
     // Keep the dialog open while interacting with popups (for example, the color picker).
     // Only the explicit Cancel button or the title-bar X should dismiss it.
     if cancel_edit {
@@ -1006,9 +1013,11 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             }
         }
         ctx.data_mut(|d| d.remove::<String>(key));
+        ctx.data_mut(|d| d.remove::<(String, String, f32, Color32)>(format_key));
         commit(app);
     } else if !open {
         ctx.data_mut(|d| d.remove::<String>(key));
+        ctx.data_mut(|d| d.remove::<(String, String, f32, Color32)>(format_key));
         commit(app);
     } else {
         ctx.data_mut(|d| d.insert_temp(key, draft));
