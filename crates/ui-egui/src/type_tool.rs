@@ -853,16 +853,27 @@ pub fn foreground_changed(app: &mut PhotocraftApp) {
 /// Compact text editor shown for an existing text layer while the Type tool is active.
 /// The inline Type tool remains responsible for creating new text layers.
 pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
-    // When the Type tool is active, selecting a text layer in the Layers panel should
-    // enter editing too. The normal canvas click path still handles creating new text.
-    if app.ui.text_edit.as_ref().is_none_or(|ed| ed.created)
-        && matches!(app.ui.tool, crate::state::Tool::Type | crate::state::Tool::VerticalType)
-    {
-        let selected = app.session.active().and_then(|st| {
-            let id = st.active_layer?;
-            matches!(st.doc.layer(id)?.content, LayerContent::Text(_)).then_some(id)
-        });
-        if let Some(id) = selected {
+    // Open on a newly selected text layer in Type or Move mode. Remember the last
+    // selection/tool pair so closing the X doesn't immediately reopen the window.
+    let active = app.session.active().and_then(|st| {
+        let id = st.active_layer?;
+        let is_text = matches!(st.doc.layer(id)?.content, LayerContent::Text(_));
+        Some((id.0, is_text))
+    });
+    let eligible_tool = matches!(
+        app.ui.tool,
+        crate::state::Tool::Type | crate::state::Tool::VerticalType | crate::state::Tool::Move
+    );
+    let selection_key = egui::Id::new("existing-text-overlay-last-selection");
+    let selection_state = active.map(|(id, is_text)| (id, is_text && eligible_tool));
+    let previous = ctx.data(|d| d.get_temp::<Option<(u64, bool)>>(selection_key).flatten());
+    if previous != selection_state {
+        ctx.data_mut(|d| d.insert_temp(selection_key, selection_state));
+        if app.ui.text_edit.as_ref().is_none_or(|ed| ed.created)
+            && eligible_tool
+            && let Some((raw_id, true)) = active
+        {
+            let id = LayerId(raw_id);
             let key = session_key(app);
             if begin_edit(app, id, &key).is_ok() {
                 let n = current_text(app, id).map_or(0, |text| text.chars().count());
@@ -940,6 +951,11 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
             if font_picker(ui, &mut selected_font, 280.0) {
                 apply(app, ctx, json!({"font": selected_font}));
             }
+            if !selected_font.trim().is_empty()
+                && !families().iter().any(|available| available.eq_ignore_ascii_case(&selected_font))
+            {
+                ui.colored_label(Color32::from_rgb(210, 65, 55), format!("Missing font: {selected_font}"));
+            }
             ui.horizontal(|ui| {
                 ui.label("Style");
                 egui::ComboBox::from_id_salt(("overlay-font-style", ed.layer))
@@ -986,20 +1002,22 @@ pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
 
     if apply_text {
         let count = current.chars().count();
-        if draft != current && app.run(
-            "type.edit",
-            json!({"layer": ed.layer, "replace": {"start": 0, "end": count, "text": draft}, "coalesce": ed.session}),
-        ).is_ok() {
-            let caret = draft.chars().count();
-            if let Some(active) = app.ui.text_edit.as_mut() {
-                active.caret = caret;
-                active.anchor = caret;
+        if draft != current {
+            if let Err(error) = app.run(
+                "type.edit",
+                json!({"layer": ed.layer, "replace": {"start": 0, "end": count, "text": draft}, "coalesce": ed.session}),
+            ) {
+                app.ui.status = error;
+                app.ui.status_error = true;
             }
         }
         ctx.data_mut(|d| d.remove::<String>(key));
+        commit(app);
+        app.ui.text_edit = None;
     } else if !open {
         ctx.data_mut(|d| d.remove::<String>(key));
         commit(app);
+        app.ui.text_edit = None;
     } else {
         ctx.data_mut(|d| d.insert_temp(key, draft));
     }
