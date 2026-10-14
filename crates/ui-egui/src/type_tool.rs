@@ -407,6 +407,7 @@ fn line_edge(app: &mut PhotocraftApp, id: LayerId, caret: usize, end: bool) -> u
 /// Keyboard input while editing. Returns true when a type edit session is active (single-key
 /// tool shortcuts must then be skipped). Handled events are removed from the frame's input.
 pub fn handle_keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
+    if ctx.text_edit_focused() { return false; }
     let Some(ed) = app.ui.text_edit.clone() else { return false };
     let id = LayerId(ed.layer);
     let Some(text) = current_text(app, id) else {
@@ -849,6 +850,186 @@ pub fn foreground_changed(app: &mut PhotocraftApp) {
     let _ = app.run("type.setStyle", p);
 }
 
+/// Compact text editor shown for an existing text layer while the Type tool is active.
+/// The inline Type tool remains responsible for creating new text layers.
+pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
+    // Open when a different editable text layer is selected in Type or Move mode.
+    // A dismissed window stays closed until the selection/tool changes.
+    let active = app.session.active().and_then(|st| {
+        let id = st.active_layer?;
+        let is_text = matches!(st.doc.layer(id)?.content, LayerContent::Text(_));
+        Some((id.0, is_text))
+    });
+    let eligible_tool = matches!(
+        app.ui.tool,
+        crate::state::Tool::Type | crate::state::Tool::VerticalType | crate::state::Tool::Move
+    );
+    let selection_key = egui::Id::new("existing-text-overlay-last-selection");
+    // Distinguish Move from Type mode: changing to Move while the same text layer
+    // remains selected should open the editor as well.
+    let move_mode = app.ui.tool == crate::state::Tool::Move;
+    let selection_state = active.map(|(id, is_text)| (id, is_text && eligible_tool, move_mode));
+    let previous = ctx.data(|d| d.get_temp::<Option<(u64, bool, bool)>>(selection_key).flatten());
+    if previous != selection_state {
+        ctx.data_mut(|d| d.insert_temp(selection_key, selection_state));
+        if app.ui.text_edit.as_ref().is_none_or(|ed| ed.created)
+            && eligible_tool
+            && let Some((raw_id, true)) = active
+        {
+            let id = LayerId(raw_id);
+            let key = session_key(app);
+            if begin_edit(app, id, &key).is_ok() {
+                let n = current_text(app, id).map_or(0, |text| text.chars().count());
+                app.ui.text_edit = Some(TextEdit {
+                    layer: id.0, caret: n, anchor: 0, session: key,
+                    created: false, dragging: false, resize: None, preedit: None,
+                });
+            }
+        }
+    }
+
+    let Some(ed) = app.ui.text_edit.clone().filter(|ed| !ed.created) else {
+        return;
+    };
+    let id = LayerId(ed.layer);
+    let Some(current) = current_text(app, id) else { return };
+    let key = egui::Id::new(("existing-text-overlay", ed.layer));
+    let mut draft = ctx.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| current.clone());
+    let mut open = true;
+    let mut apply_text = false;
+    let mut cancel_edit = false;
+    let format_key = egui::Id::new(("existing-text-overlay-format", ed.layer));
+    let format_defaults = app.session.active().and_then(|st| text_layer(&st.doc, id).map(|t| {
+        let style = t.char_runs().into_iter().next().map(|r| r.style.font_style.clone());
+        let rgb = t.color.to_rgb();
+        (
+            t.font_family.clone(),
+            style.filter(|s| !s.is_empty()).unwrap_or_else(|| app.ui.tool_options.type_style.clone()),
+            t.size_pt * shown_scale(app),
+            Color32::from_rgb(
+                (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (rgb[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (rgb[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+            ),
+        )
+    })).unwrap_or_else(|| {
+        let c = app.session.tools.foreground;
+        (
+            app.ui.tool_options.type_font.clone(),
+            app.ui.tool_options.type_style.clone(),
+            app.ui.tool_options.type_size,
+            Color32::from_rgb(
+                (c[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (c[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                (c[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+            ),
+        )
+    });
+    let (mut selected_font, mut selected_style, mut selected_size, mut selected_color) =
+        ctx.data(|d| d.get_temp::<(String, String, f32, Color32)>(format_key))
+            .unwrap_or(format_defaults);
+
+    let window_response = egui::Window::new("Edit Text")
+        .id(egui::Id::new(("existing-text-overlay-window", ed.layer)))
+        .collapsible(false)
+        .resizable(false)
+        .default_width(340.0)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.label(egui::RichText::new("Text").strong());
+            let response = ui.add(
+                egui::TextEdit::multiline(&mut draft)
+                    .desired_width(320.0)
+                    .desired_rows(4)
+                    .hint_text("Enter text…"),
+            );
+            if response.changed() {
+                ctx.data_mut(|d| d.insert_temp(key, draft.clone()));
+            }
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new("Font").strong());
+            if font_picker(ui, &mut selected_font, 280.0) {
+                let available_styles = styles(&selected_font);
+                if !available_styles.contains(&selected_style) {
+                    selected_style = available_styles.first().cloned().unwrap_or_else(|| "Regular".into());
+                }
+                // Preview the chosen font immediately, matching the main Type options bar.
+                // Apply remains available to commit the text content and final formatting.
+                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
+            }
+            if !selected_font.trim().is_empty()
+                && !families().iter().any(|available| available.eq_ignore_ascii_case(&selected_font))
+            {
+                ui.colored_label(Color32::from_rgb(210, 65, 55), format!("Missing font: {selected_font}"));
+            }
+            ui.horizontal(|ui| {
+                ui.label("Style");
+                egui::ComboBox::from_id_salt(("overlay-font-style", ed.layer))
+                    .selected_text(&selected_style)
+                    .show_ui(ui, |ui| {
+                        for style in styles(&selected_font) {
+                            if ui.selectable_label(style == selected_style, &style).clicked() {
+                                selected_style = style;
+                                apply(app, ctx, json!({"font": selected_font, "fontStyle": selected_style}));
+                            }
+                        }
+                    });
+            });
+            ui.horizontal(|ui| {
+                ui.label("Size");
+                let _ = ui.add(egui::DragValue::new(&mut selected_size).range(1.0..=1296.0).suffix(" pt"));
+                ui.label("Color");
+                let _ = egui::color_picker::color_edit_button_srgba(ui, &mut selected_color, egui::color_picker::Alpha::Opaque);
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Apply").clicked() {
+                    apply_text = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    cancel_edit = true;
+                }
+            });
+        });
+
+    ctx.data_mut(|d| d.insert_temp(format_key, (selected_font.clone(), selected_style.clone(), selected_size, selected_color)));
+
+    // Keep the dialog open while interacting with popups (for example, the color picker).
+    // Only the explicit Cancel button or the title-bar X should dismiss it.
+    if cancel_edit {
+        open = false;
+    }
+
+    if apply_text {
+        // Apply font/style/size/color only after Apply is pressed. Cancel and X discard
+        // the pending text and formatting changes instead of leaving partial edits behind.
+        apply(app, ctx, json!({
+            "font": selected_font,
+            "fontStyle": selected_style,
+            "size": selected_size / shown_scale(app),
+            "color": format!("#{:02x}{:02x}{:02x}", selected_color.r(), selected_color.g(), selected_color.b())
+        }));
+        let count = current.chars().count();
+        if draft != current {
+            if let Err(error) = app.run(
+                "type.edit",
+                json!({"layer": ed.layer, "replace": {"start": 0, "end": count, "text": draft}, "coalesce": ed.session}),
+            ) {
+                app.ui.status = error;
+                app.ui.status_error = true;
+            }
+        }
+        ctx.data_mut(|d| d.remove::<String>(key));
+        ctx.data_mut(|d| d.remove::<(String, String, f32, Color32)>(format_key));
+        commit(app);
+    } else if !open {
+        ctx.data_mut(|d| d.remove::<String>(key));
+        ctx.data_mut(|d| d.remove::<(String, String, f32, Color32)>(format_key));
+        commit(app);
+    } else {
+        ctx.data_mut(|d| d.insert_temp(key, draft));
+    }
+}
 /// Photoshop's Type options bar.
 pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());

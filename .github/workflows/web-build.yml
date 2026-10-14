@@ -2,7 +2,7 @@ name: Web build check
 
 on:
   push:
-    branches: [font-support-work]
+    branches: [font-support-work, desktop-text-overlay]
   workflow_dispatch:
 
 permissions:

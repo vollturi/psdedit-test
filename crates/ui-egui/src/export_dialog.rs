@@ -235,6 +235,85 @@ pub fn confirm(app: &mut PhotocraftApp, f: &Map<String, Value>) -> Result<Value,
     Ok(json!({"path": path, "bytes": bytes.len(), "warnings": warnings}))
 }
 
+/// Export the flattened document as a single-page PDF containing a JPEG image.
+/// This uses the existing document renderer/exporter, so PDF export works in the web build
+/// without introducing a new PDF dependency. Text/layers are rasterized in the PDF.
+pub fn export_pdf(app: &mut PhotocraftApp) -> Result<Value, String> {
+    let st = app.session.active().ok_or("no document")?;
+    let stem = st.doc.name.rsplit_once('.').map_or(st.doc.name.as_str(), |(a, _)| a).to_string();
+    let suggested = format!("{stem}.pdf");
+    let path = app.services.pick_save.as_mut().and_then(|p| p(&suggested)).ok_or("cancelled")?;
+
+    let mut f = Map::new();
+    f.insert("format".into(), json!("jpg"));
+    f.insert("quality".into(), json!(92));
+    f.insert("transparency".into(), json!(false));
+    f.insert("scale".into(), json!(100));
+    f.insert("metadata".into(), json!("none"));
+    let out = export_document(&st.doc, &f, None)?;
+    let export = app.services.export.as_ref().ok_or("no exporter configured")?;
+    let (jpeg, warnings) = export(&out, "export.pdf.jpg", &settings(&f))?;
+    let pdf = jpeg_to_pdf(&jpeg, out.size.width, out.size.height)?;
+    let write = app.services.write.as_mut().ok_or("no writer configured")?;
+    write(&path, &pdf)?;
+    app.ui.status = format!("Exported {path} ({})", crate::sizing::human_bytes(pdf.len() as f64));
+    app.ui.status_error = false;
+    crate::notices::io_warnings(app, &format!("Exported {}", crate::file_open::display_name(&path)), &warnings);
+    Ok(json!({"path": path, "bytes": pdf.len(), "warnings": warnings}))
+}
+
+/// Wrap a JPEG image in a valid one-page PDF using PDF's native DCTDecode image filter.
+fn jpeg_to_pdf(jpeg: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
+    if jpeg.len() < 4 || !jpeg.starts_with(&[0xff, 0xd8]) || !jpeg.ends_with(&[0xff, 0xd9]) {
+        return Err("PDF export could not encode the document as JPEG".into());
+    }
+    let w = width.max(1);
+    let h = height.max(1);
+    let content = format!("q\n{w} 0 0 {h} 0 0 cm\n/Im0 Do\nQ\n");
+    let mut objects: Vec<Vec<u8>> = Vec::new();
+    objects.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
+    objects.push(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec());
+    objects.push(format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>").into_bytes());
+    let mut image = format!("<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\nstream\n", jpeg.len()).into_bytes();
+    image.extend_from_slice(jpeg);
+    image.extend_from_slice(b"\nendstream");
+    objects.push(image);
+    objects.push(format!("<< /Length {} >>\nstream\n{}endstream", content.len(), content).into_bytes());
+
+    let mut pdf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
+    let mut offsets = vec![0usize];
+    for (idx, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", idx + 1).as_bytes());
+        pdf.extend_from_slice(object);
+        pdf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
+    pdf.extend_from_slice(b"0000000000 65535 f \n");
+    for offset in offsets.iter().skip(1) {
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
+    Ok(pdf)
+}
+
+#[cfg(test)]
+mod pdf_tests {
+    use super::*;
+
+    #[test]
+    fn jpeg_to_pdf_builds_valid_pdf_structure() {
+        let mut jpeg = vec![0xff, 0xd8];
+        jpeg.extend_from_slice(b"jpeg-data");
+        jpeg.extend_from_slice(&[0xff, 0xd9]);
+        let pdf = jpeg_to_pdf(&jpeg, 120, 80).unwrap();
+        assert!(pdf.starts_with(b"%PDF-1.4"));
+        assert!(pdf.windows(14).any(|w| w == b"/Subtype /Image"));
+        assert!(pdf.ends_with(b"%%EOF\n"));
+    }
+}
+
 /// File › Export › Quick Export as PNG: the format, quality, metadata, colour space and location
 /// from File › Export › Export Preferences (engine `file.export.quickExport`). On the web (no
 /// file system) it falls back to a PNG download through the export service.

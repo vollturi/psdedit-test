@@ -1087,6 +1087,7 @@ impl eframe::App for PhotocraftApp {
         brush_panel::window(self, &ctx);
         preset_panels::windows(self, &ctx);
         type_panels_ui::windows(self, &ctx);
+        type_tool::text_overlay(self, &ctx);
         analysis_ui::windows(self, &ctx);
         timeline_ui::windows(self, &ctx);
         workspace_ui::windows(self, &ctx);
