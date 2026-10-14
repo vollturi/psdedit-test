@@ -853,6 +853,26 @@ pub fn foreground_changed(app: &mut PhotocraftApp) {
 /// Compact text editor shown for an existing text layer while the Type tool is active.
 /// The inline Type tool remains responsible for creating new text layers.
 pub fn text_overlay(app: &mut PhotocraftApp, ctx: &egui::Context) {
+    // When the Type tool is active, selecting a text layer in the Layers panel should
+    // enter editing too. The normal canvas click path still handles creating new text.
+    if app.ui.text_edit.as_ref().is_none_or(|ed| ed.created)
+        && matches!(app.ui.tool, crate::state::Tool::Type | crate::state::Tool::VerticalType)
+    {
+        let selected = app.session.active().and_then(|st| {
+            let id = st.active_layer?;
+            matches!(st.doc.layer(id)?.content, LayerContent::Text(_)).then_some(id)
+        });
+        if let Some(id) = selected {
+            let key = session_key(app);
+            if begin_edit(app, id, &key).is_ok() {
+                let n = current_text(app, id).map_or(0, |text| text.chars().count());
+                app.ui.text_edit = Some(TextEdit {
+                    layer: id.0, caret: n, anchor: 0, session: key,
+                    created: false, dragging: false, resize: None, preedit: None,
+                });
+            }
+        }
+    }
     let Some(ed) = app.ui.text_edit.clone().filter(|ed| !ed.created) else {
         return;
     };
